@@ -8,11 +8,15 @@
   <meta property="og:site_name" content="HAK Analysis">
   <meta property="og:title" content="HAK Analysis — Football Analysis Platform">
   <meta property="og:description" content="Professional individual and team football analysis tools.">
-  <meta property="og:image" content="https://nak-analyses.netlify.app/assets/hak-social-preview.png?v=8">
+  <meta property="og:url" content="https://hak-things.github.io/HAK-Analysis/">
+  <meta property="og:image" content="https://hak-things.github.io/HAK-Analysis/assets/hak-social-preview.png?v=9">
+  <meta property="og:image:secure_url" content="https://hak-things.github.io/HAK-Analysis/assets/hak-social-preview.png?v=9">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:alt" content="HAK Analysis logo">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://nak-analyses.netlify.app/assets/hak-social-preview.png?v=8">
+  <meta name="twitter:image" content="https://hak-things.github.io/HAK-Analysis/assets/hak-social-preview.png?v=9">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="HAK Analysis">
   <link rel="icon" type="image/png" href="assets/hak-round-logo.png?v=8">
@@ -24,7 +28,7 @@
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 18%,#14385f 0,#081a31 32%,#030914 78%);color:var(--white);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     body:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);background-size:38px 38px;mask-image:linear-gradient(to bottom,black,transparent 72%)}
     button,a{font:inherit}.shell{width:min(1500px,100%);min-height:100vh;margin:auto;padding:28px 30px 40px;display:flex;flex-direction:column;position:relative;z-index:1}
-    .topline{display:flex;justify-content:center;align-items:center;gap:9px;color:#cfe8ff;font-size:.82rem;letter-spacing:.22em;text-transform:uppercase}.topline span{width:34px;height:1px;background:var(--gold)}
+    .topline{display:flex;justify-content:center;align-items:center;gap:9px;color:#cfe8ff;font-size:.82rem;letter-spacing:.22em;text-transform:uppercase}.topline .topline-rule{width:34px;height:1px;background:var(--gold);flex:0 0 34px}.topline .topline-text{white-space:nowrap}
     .hero{flex:1;display:grid;grid-template-columns:minmax(290px,1fr) minmax(240px,.65fr) minmax(290px,1fr);align-items:center;gap:24px;padding:28px 0}
     .program{position:relative;min-height:520px;border-radius:28px;overflow:hidden;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.18);box-shadow:0 28px 70px rgba(0,0,0,.42);isolation:isolate;transition:transform .32s ease,border-color .32s ease,box-shadow .32s ease}
     .program:hover,.program:focus-visible{transform:translateY(-8px);border-color:rgba(60,167,255,.9);box-shadow:0 35px 90px rgba(0,0,0,.5),0 0 0 1px rgba(60,167,255,.35);outline:none}.program-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;z-index:-2;transition:transform .6s ease}.program:hover .program-bg,.program:focus-visible .program-bg{transform:scale(1.035)}.program:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(1,7,16,.06) 20%,rgba(2,9,19,.9) 79%,#020812 100%);z-index:-1}
@@ -39,7 +43,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="topline"><span></span><span data-i18n="topline">Football analysis platform</span><span></span></div>
+    <div class="topline"><span class="topline-rule"></span><span class="topline-text">Football analysis platform</span><span class="topline-rule"></span></div>
     <section class="hero">
       <a class="program individual" href="individual-analysis.html"><img class="program-bg" src="assets/individual-analysis.png?v=5" alt="Goalkeeper and outfield player" loading="eager">
         <div class="program-copy"><div class="eyebrow" data-i18n="individualEyebrow">Player performance</div><h2 data-i18n-html="individualTitle">INDIVIDUAL<br>ANALYSIS</h2><p data-i18n="individualDesc">Action evaluation, performance ratings, video clips and professional reports for goalkeepers and outfield players.</p><span class="enter"><span data-i18n="openProgram">OPEN PROGRAM</span> <b>→</b></span></div>
@@ -104,13 +108,13 @@
   <script>
     const i18n={
       en:{
-        topline:'Football analysis platform',subtitle:'ANALYSIS PLATFORM',
+        subtitle:'ANALYSIS PLATFORM',
         individualEyebrow:'Player performance',individualTitle:'INDIVIDUAL<br>ANALYSIS',individualDesc:'Action evaluation, performance ratings, video clips and professional reports for goalkeepers and outfield players.',
         teamEyebrow:'Collective performance',teamTitle:'TEAM<br>ANALYSIS',teamDesc:'Tag team situations, track tactical metrics, organise selections and present the chosen video clips.',openProgram:'OPEN PROGRAM',
         instructionsBtn:'INSTRUCTIONS',aboutBtn:'ABOUT ME',instructionsTitle:'Instructions',instructionsLead:'Both programs run directly in your browser. Choose Individual Analysis for a single player or Team Analysis for the entire team.',aboutTitle:'About Me'
       },
       bg:{
-        topline:'Платформа за футболен анализ',subtitle:'ПЛАТФОРМА ЗА АНАЛИЗ',
+        subtitle:'ПЛАТФОРМА ЗА АНАЛИЗ',
         individualEyebrow:'Индивидуално представяне',individualTitle:'ИНДИВИДУАЛЕН<br>АНАЛИЗ',individualDesc:'Оценка на действията, рейтинг на представянето, видео клипове и професионални отчети за вратари и полеви играчи.',
         teamEyebrow:'Отборно представяне',teamTitle:'ОТБОРЕН<br>АНАЛИЗ',teamDesc:'Маркирайте отборни ситуации, следете тактически метрики, организирайте селекциите и представяйте избраните видео клипове.',openProgram:'ОТВОРИ ПРОГРАМАТА',
         instructionsBtn:'ИНСТРУКЦИИ',aboutBtn:'ЗА МЕН',instructionsTitle:'Инструкции',instructionsLead:'И двете програми работят директно във вашия браузър. Изберете Индивидуален анализ за отделен играч или Отборен анализ за целия отбор.',aboutTitle:'За мен'

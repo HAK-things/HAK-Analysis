@@ -756,6 +756,7 @@
 
 
   .multi-filter{position:relative;min-width:0}.multi-filter-button{width:100%;min-height:44px;background:rgba(255,255,255,.95);color:#0f172a;padding:10px 12px;border-radius:14px;display:flex;justify-content:space-between;align-items:center;font-weight:700}.multi-filter-menu{display:none;position:absolute;z-index:50;top:calc(100% + 6px);left:0;min-width:220px;max-height:280px;overflow:auto;background:#0f172a;color:white;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:8px;box-shadow:0 14px 30px rgba(0,0,0,.35);pointer-events:auto}.multi-filter-menu.open{display:grid;gap:4px}.multi-filter-menu label{display:flex;gap:9px;align-items:center;padding:8px 10px;border-radius:9px;cursor:pointer}.action-log-filters .multi-filter-menu input[type="checkbox"]{appearance:auto;-webkit-appearance:checkbox;display:inline-block;flex:0 0 18px;width:18px;height:18px;margin:0;padding:0;border-radius:2px;background:initial;color:initial;accent-color:#38bdf8;cursor:pointer}.action-log-panel.multi-filter-open table{pointer-events:none}.action-log-panel.multi-filter-open .action-log-filters{position:relative;z-index:60000}.edited-badge{display:inline-flex;margin-left:6px;padding:3px 7px;border-radius:999px;font-size:10px;font-weight:800;background:rgba(56,189,248,.18);border:1px solid rgba(56,189,248,.45);color:#bae6fd}.note-preview{display:block;max-width:260px;white-space:normal;font-size:12px;opacity:.82;margin-top:4px}
+  .multi-filter-menu.open-up{top:auto;bottom:calc(100% + 6px)}
 
 </style>
 <script>
@@ -1235,6 +1236,31 @@ body.analysis-mode .metric-card {
   border-radius: 11px;
 }
 
+body.analysis-mode .metric-card.active {
+  position: relative;
+  padding-right: 42px;
+  border-color: #38bdf8 !important;
+  background: rgba(56,189,248,.24) !important;
+  box-shadow: 0 0 0 2px rgba(56,189,248,.28), 0 0 18px rgba(56,189,248,.34) !important;
+}
+
+body.analysis-mode .metric-card.active::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  transform: translateY(-50%);
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #38bdf8;
+  color: #06233a;
+  font-size: 15px;
+  font-weight: 950;
+}
+
 body.analysis-mode .metric-card-header {
   margin: 0;
 }
@@ -1322,6 +1348,46 @@ body.analysis-mode .rating-buttons .score-code {
   font-size: 14px;
 }
 
+.rating-feedback {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: 66px;
+  transform: translate(-50%, 8px);
+  z-index: 11200;
+  padding: 8px 14px;
+  border: 1px solid rgba(125,211,252,.65);
+  border-radius: 999px;
+  background: rgba(5,23,42,.94);
+  color: #e0f2fe;
+  box-shadow: 0 10px 28px rgba(0,0,0,.36);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: .03em;
+  pointer-events: none;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+body.analysis-mode .rating-feedback.show {
+  display: block;
+  animation: ratingFeedback 1.15s ease both;
+}
+
+.score-btn.rating-confirmed { animation: ratingButtonPulse .42s ease; }
+
+@keyframes ratingButtonPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  45% { transform: scale(.9); filter: brightness(1.45); box-shadow: 0 0 0 4px rgba(255,255,255,.3); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes ratingFeedback {
+  0% { opacity: 0; transform: translate(-50%, 8px); }
+  18%,72% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -5px); }
+}
+
 @media (max-width: 899px) {
   .analysis-mode-entry {
     display: none !important;
@@ -1406,6 +1472,7 @@ body.analysis-mode .hak-suite-bar{display:none!important}
   </section>
 
   <button id="analysisModeExit" class="analysis-mode-exit" type="button" onclick="exitAnalysisMode()">✕ EXIT</button>
+  <div id="ratingFeedback" class="rating-feedback" role="status" aria-live="polite"></div>
 
 
 
@@ -1722,7 +1789,7 @@ body.analysis-mode .hak-suite-bar{display:none!important}
   const actionLogFilterState = { metrics:new Set(), scores:new Set() };
   function closeMultiFilters() {
     document.querySelectorAll('.multi-filter-menu').forEach(menu => {
-      menu.classList.remove('open');
+      menu.classList.remove('open', 'open-up');
       ['position','left','top','width','z-index'].forEach(property => menu.style.removeProperty(property));
     });
     document.querySelectorAll('.action-log-panel.multi-filter-open').forEach(panel => panel.classList.remove('multi-filter-open'));
@@ -1740,17 +1807,10 @@ body.analysis-mode .hak-suite-bar{display:none!important}
     const button=menu.parentElement?.querySelector('.multi-filter-button');
     if(button){
       const r=button.getBoundingClientRect();
-      const width=Math.min(Math.max(r.width,220),window.innerWidth-24);
-      const left=Math.max(12,Math.min(r.left,window.innerWidth-width-12));
-      let top=r.bottom+6;
-      const estimatedHeight=Math.min(300,window.innerHeight*0.45);
-      if(top+estimatedHeight>window.innerHeight-12) top=Math.max(12,r.top-estimatedHeight-6);
-
-      menu.style.position='fixed';
-      menu.style.left=`${left}px`;
-      menu.style.top=`${top}px`;
-      menu.style.width=`${width}px`;
-      menu.style.zIndex='50000';
+      const expectedHeight=Math.min(280,window.innerHeight*.45);
+      const spaceBelow=window.innerHeight-r.bottom-12;
+      const spaceAbove=r.top-12;
+      menu.classList.toggle('open-up',spaceBelow<expectedHeight&&spaceAbove>spaceBelow);
     }
     menu.classList.add('open');
     if(panel)panel.classList.add('multi-filter-open');
@@ -1759,7 +1819,6 @@ body.analysis-mode .hak-suite-bar{display:none!important}
   document.addEventListener('pointerdown', event => {
     if (!event.target.closest('.multi-filter')) closeMultiFilters();
   });
-  window.addEventListener('scroll', closeMultiFilters, true);
   window.addEventListener('resize', closeMultiFilters);
   function rebuildMetricMultiFilter(){const menu=document.getElementById('metricMultiMenu');if(!menu)return;const names=sortedMetricNames();menu.innerHTML=names.length?names.map(name=>{const checked=actionLogFilterState.metrics.has(name)?'checked':'';return `<label><input type="checkbox" value="${escapeHtml(name)}" ${checked} onchange="onMetricMultiChange()"> ${escapeHtml(name)}</label>`}).join(''):'<span style="padding:8px;opacity:.7;">No metrics</span>';updateMultiFilterLabels()}
   function onMetricMultiChange(){actionLogFilterState.metrics=new Set([...document.querySelectorAll('#metricMultiMenu input:checked')].map(i=>i.value));updateMultiFilterLabels();renderLogTable()}
@@ -1849,6 +1908,7 @@ function enterAnalysisMode() {
   document.body.classList.add('analysis-mode');
   closeMultiFilters();
   window.scrollTo(0, 0);
+  requestAnimationFrame(restoreAnalysisKeyboardFocus);
   const pageRoot = document.documentElement;
   const requestFullscreen = pageRoot.requestFullscreen || pageRoot.webkitRequestFullscreen;
   if (requestFullscreen) {
@@ -1856,6 +1916,16 @@ function enterAnalysisMode() {
       const result = requestFullscreen.call(pageRoot);
       if (result && typeof result.catch === 'function') result.catch(() => {});
     } catch (_) {}
+  }
+}
+
+function restoreAnalysisKeyboardFocus() {
+  if (!document.body.classList.contains('analysis-mode')) return;
+  const active=document.activeElement;
+  if (active && typeof active.blur==='function') active.blur();
+  const player=document.getElementById('videoPlayer');
+  if (player && typeof player.focus==='function') {
+    try { player.focus({preventScroll:true}); } catch (_) { player.focus(); }
   }
 }
 
@@ -2200,6 +2270,28 @@ document.addEventListener('keydown', event => {
 
   const ACTION_LOG_OFFSET_SECONDS = 0;
 
+  let ratingFeedbackTimer = null;
+  function showRatingFeedback(metric, value) {
+    if (!document.body.classList.contains('analysis-mode')) return;
+    const feedback=document.getElementById('ratingFeedback');
+    if(feedback){
+      feedback.textContent=`✓ SAVED: ${metric} · ${displayScoreValue(value)}`;
+      feedback.classList.remove('show');
+      void feedback.offsetWidth;
+      feedback.classList.add('show');
+      clearTimeout(ratingFeedbackTimer);
+      ratingFeedbackTimer=setTimeout(()=>feedback.classList.remove('show'),1200);
+    }
+    const scoreButton=[...document.querySelectorAll('.score-btn')].find(button=>button.getAttribute('onclick')===`addScore('${value}')`);
+    if(scoreButton){
+      scoreButton.classList.remove('rating-confirmed');
+      void scoreButton.offsetWidth;
+      scoreButton.classList.add('rating-confirmed');
+      setTimeout(()=>scoreButton.classList.remove('rating-confirmed'),480);
+    }
+    requestAnimationFrame(restoreAnalysisKeyboardFocus);
+  }
+
   function addScore(value) {
     if (!activeMetric || isGoalsConcedetMetric(activeMetric)) return;
 
@@ -2218,6 +2310,7 @@ document.addEventListener('keydown', event => {
       });
 
       render();
+      showRatingFeedback(MOMENTS_METRIC, value);
       return;
     }
 
@@ -2233,7 +2326,9 @@ document.addEventListener('keydown', event => {
       seconds
     });
 
+    const scoredMetric=activeMetric;
     render();
+    showRatingFeedback(scoredMetric, value);
   }
 
   function undoLastAction() {
@@ -3276,14 +3371,18 @@ document.addEventListener('keydown', event => {
     });
 
     document.addEventListener('keydown', function(e) {
-      const tag = document.activeElement?.tagName;
+      const activeElement=document.activeElement;
+      const tag = activeElement?.tagName;
       const isTyping =
         tag === 'INPUT' ||
         tag === 'TEXTAREA' ||
         tag === 'SELECT' ||
-        document.activeElement?.isContentEditable;
+        activeElement?.isContentEditable;
+      const typingControlIsVisible=!!(activeElement&&(activeElement.offsetWidth||activeElement.offsetHeight||activeElement.getClientRects?.().length));
+      const playlistOverlay=document.getElementById('gkaPlaylistOverlay');
+      const playlistIsOpen=playlistOverlay&&getComputedStyle(playlistOverlay).display!=='none';
 
-      if (isTyping) return;
+      if (playlistIsOpen||(isTyping&&typingControlIsVisible)) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -3303,7 +3402,7 @@ document.addEventListener('keydown', event => {
         e.preventDefault();
         videoPlayer.currentTime = Math.min(videoPlayer.duration || Infinity, videoPlayer.currentTime + 3);
       }
-    });
+    }, true);
   }
 
   function render() {
@@ -3322,7 +3421,10 @@ document.addEventListener('keydown', event => {
     const card = event.target.closest('.metric-card');
     if (!card) return;
     const name = card.getAttribute('data-name');
-    if (name) selectMetric(name);
+    if (name) {
+      selectMetric(name);
+      requestAnimationFrame(restoreAnalysisKeyboardFocus);
+    }
   });
 
   document.getElementById('playerName').addEventListener('input', render);

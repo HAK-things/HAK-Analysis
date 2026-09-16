@@ -88,8 +88,9 @@ body.team-analysis-mode .analysis-mode-exit{
 .hak-home-link{display:inline-flex;align-items:center;gap:9px;color:#fff;text-decoration:none;font-weight:900;font-size:14px}.hak-home-link:hover{color:#9ed6ff}.hak-home-icon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;background:#2899ee;color:#04111f;font-size:18px}.hak-suite-section{font-size:12px;font-weight:850;letter-spacing:.15em;color:#dcecff}
 button,input,select,textarea{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.add-btn,.delete-btn,.undo-btn,.btn{border-radius:10px!important;transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}.add-btn:hover,.delete-btn:hover,.undo-btn:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(4,24,43,.16)}
 input,select,textarea{outline:none}input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px rgba(57,168,255,.2)!important;border-color:#39a8ff!important}
+.hak-copyright{text-align:center;color:#8da8c2;font:600 12px/1.5 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.04em;padding:18px 12px 24px}
 @media(max-width:600px){.hak-suite-bar{padding:6px 10px}.hak-suite-section{font-size:10px;letter-spacing:.08em}.hak-home-link{font-size:12px}}
-@media print{.hak-suite-bar{display:none!important}}
+@media print{.hak-suite-bar,.hak-copyright{display:none!important}}
 </style>
 <style id="hak-team-theme">
 body{background:radial-gradient(circle at 50% 0,#153a60 0,#091a30 35%,#030914 100%)!important;background-attachment:fixed!important;color:#eef8ff!important;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important}.app{background:transparent!important}.topbar{min-height:64px!important;height:auto!important;padding:8px 16px!important;background:linear-gradient(100deg,#030b17,#0b2948 58%,#071426)!important;border-bottom:1px solid rgba(213,183,104,.42);box-shadow:0 12px 30px rgba(5,20,38,.2)}.brand{font-size:18px!important;letter-spacing:.045em}.brand-text::after{content:" · HAK ANALYSIS";font-size:10px;color:#91d1ff;letter-spacing:.13em;margin-left:7px}.brand-logo{width:58px!important;height:44px!important}
@@ -99,7 +100,7 @@ body.team-analysis-mode .hak-suite-bar{display:none!important}body.team-analysis
 @media(max-width:850px){.topbar{padding:8px 10px!important}.work{padding:8px!important}.brand-text::after{display:block;margin:4px 0 0}}
 @media print{body,.app,.stat,.table-wrap{background:#fff!important;color:#142033!important}.stat,.table-wrap,td{color:#142033!important}th{background:#f4f7fa!important;color:#142033!important}}
 </style></head>
-<body><nav class="hak-suite-bar" aria-label="HAK Analysis navigation"><a href="index.html" class="hak-home-link"><span class="hak-home-icon">⌂</span><span>HAK ANALYSIS</span></a><span class="hak-suite-section">TEAM ANALYSIS</span></nav>
+<body><nav class="hak-suite-bar" aria-label="HAK Analysis navigation"><a href="index.html" class="hak-home-link"><span class="hak-home-icon">🏠</span><span>HOME</span></a><span class="hak-suite-section">TEAM ANALYSIS</span></nav>
 <div class="app">
   <header class="topbar">
     <div class="brand"><span class="brand-logo" aria-hidden="true"></span><span class="brand-text">TEAM ANALYSIS</span></div>
@@ -134,6 +135,7 @@ body.team-analysis-mode .hak-suite-bar{display:none!important}body.team-analysis
     <div class="table-wrap"><table><thead><tr><th class="no-print">✓</th><th>#</th><th>Project</th><th>Start</th><th>End</th><th>Duration</th><th>Metrics</th><th>Result</th><th>Coach note</th><th class="no-print">Clip / Edit</th></tr></thead><tbody id="log"></tbody></table></div>
   </section>
 </div>
+<footer class="hak-copyright">© 2026 Nikolay Kutsarov — HAK Analysis. All rights reserved.</footer>
 <button class="analysis-mode-exit" id="analysisModeExit">✕ EXIT</button>
 <div class="overlay" id="playerOverlay"><div class="modal"><div class="modal-head"><div><b id="playerTitle">Selected clips</b><div id="playerInfo"></div></div><button class="btn" id="closePlayer">Close</button></div><video id="playlistVideo" controls playsinline></video><div class="clip-controls"><button class="btn" id="prevClip">Previous</button><button class="btn primary" id="nextClip">Next</button></div></div></div>
 <script>

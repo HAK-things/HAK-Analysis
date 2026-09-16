@@ -1,0 +1,54 @@
+HAK ANALYSIS — FREE-USE, NON-COMMERCIAL LICENSE
+Version 1.0 — 2026
+
+Copyright © 2026 Nikolay Kutsarov. All rights reserved.
+
+1. Permission to Use
+
+Permission is granted to access and use the hosted HAK Analysis software free
+of charge for personal, educational, coaching, and professional football
+analysis.
+
+2. Restrictions
+
+Unless prior written permission is obtained from Nikolay Kutsarov, you may not:
+
+- sell, rent, sublicense, or otherwise charge for the software or access to it;
+- copy, republish, redistribute, or host the software or its source code;
+- modify the software and publish or distribute the modified version;
+- present the software, source code, design, or functionality as your own work;
+- remove, hide, or replace the HAK Analysis name, logo, copyright notice, or
+  other authorship information;
+- use the HAK Analysis name or logo for another product, service, or commercial
+  activity.
+
+3. Analysis Content
+
+Users retain responsibility for the videos, reports, notes, and other content
+they process or create with the software. Users must have the necessary rights
+and permissions for that content.
+
+4. Third-Party Components
+
+Any third-party libraries, components, fonts, or other materials included in
+the software remain subject to their own applicable licenses and terms.
+
+5. No Warranty
+
+The software is provided "as is", without warranties of any kind. The author
+is not responsible for data loss, interrupted operation, inaccurate results,
+device incompatibility, or other direct or indirect damage arising from use of
+the software.
+
+6. Termination
+
+Permission to use the software ends automatically if these terms are violated.
+Upon termination, all copied or redistributed versions must be removed.
+
+7. Additional Permission
+
+For redistribution, modification, commercial use, club-wide deployment outside
+the hosted service, or any use not clearly permitted above, written permission
+must be obtained from Nikolay Kutsarov.
+
+HAK Analysis is free to use, but it is not open-source software.

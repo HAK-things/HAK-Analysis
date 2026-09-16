@@ -1424,10 +1424,11 @@ body.analysis-mode .rating-feedback.show {
 :root{--hak-navy:#06101f;--hak-navy-2:#0b2746;--hak-blue:#39a8ff;--hak-gold:#d5b768;--hak-line:rgba(38,105,163,.24);--hak-shadow:0 16px 38px rgba(5,20,38,.13)}
 .hak-suite-bar{min-height:44px;padding:7px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(100deg,#030b17,#0b2948 58%,#071426);color:#fff;border-bottom:1px solid rgba(213,183,104,.42);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.04em;position:relative;z-index:21000}
 .hak-home-link{display:inline-flex;align-items:center;gap:9px;color:#fff;text-decoration:none;font-weight:900;font-size:14px}.hak-home-link:hover{color:#9ed6ff}.hak-home-icon{width:29px;height:29px;border-radius:9px;display:grid;place-items:center;background:#2899ee;color:#04111f;font-size:18px}.hak-suite-section{font-size:12px;font-weight:850;letter-spacing:.15em;color:#dcecff}
+.hak-copyright{text-align:center;color:#8da8c2;font:600 12px/1.5 Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.04em;padding:18px 12px 24px}
 button,input,select,textarea{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.add-btn,.delete-btn,.undo-btn,.btn{border-radius:10px!important;transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}.add-btn:hover,.delete-btn:hover,.undo-btn:hover,.btn:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(4,24,43,.16)}
 input,select,textarea{outline:none}input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3px rgba(57,168,255,.2)!important;border-color:#39a8ff!important}
 @media(max-width:600px){.hak-suite-bar{padding:6px 10px}.hak-suite-section{font-size:10px;letter-spacing:.08em}.hak-home-link{font-size:12px}}
-@media print{.hak-suite-bar{display:none!important}}
+@media print{.hak-suite-bar,.hak-copyright{display:none!important}}
 </style>
 <style id="hak-individual-theme">
 body{background:radial-gradient(circle at 50% 0,#153a60 0,#091a30 35%,#030914 100%)!important;background-attachment:fixed!important;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important}
@@ -1437,7 +1438,7 @@ body::before{opacity:.045!important}.page{width:min(1480px,calc(100% - 24px))!im
 body.analysis-mode .hak-suite-bar{display:none!important}
 @media(max-width:700px){.page{width:min(100% - 12px,1480px)!important}.app-header{min-height:62px;padding:8px 10px!important;gap:10px!important}.hak-title-logo{width:44px;height:44px}.app-header .title{font-size:clamp(16px,5vw,25px)!important;white-space:normal}}
 </style></head>
-<body><nav class="hak-suite-bar" aria-label="HAK Analysis navigation"><a href="index.html" class="hak-home-link"><span class="hak-home-icon">⌂</span><span>HAK ANALYSIS</span></a><span class="hak-suite-section">INDIVIDUAL ANALYSIS</span></nav>
+<body><nav class="hak-suite-bar" aria-label="HAK Analysis navigation"><a href="index.html" class="hak-home-link"><span class="hak-home-icon">🏠</span><span>HOME</span></a><span class="hak-suite-section">INDIVIDUAL ANALYSIS</span></nav>
 <div class="page">
   <div class="app-header">
     <div class="title">Individual Analysis</div>
@@ -1704,6 +1705,7 @@ body.analysis-mode .hak-suite-bar{display:none!important}
 
 </div>
 
+<footer class="hak-copyright">© 2026 Nikolay Kutsarov — HAK Analysis. All rights reserved.</footer>
 
 <script>
   const metrics = {};

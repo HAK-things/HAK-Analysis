@@ -1417,6 +1417,43 @@ body.analysis-mode .rating-feedback.show {
   max-height: calc(100vh - 125px) !important;
   object-fit: contain;
 }
+
+/* Universal fallback for browsers that do not expose the Fullscreen API. */
+body.gka-pseudo-fullscreen-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+#gkaPlaylistOverlay.gka-pseudo-fullscreen {
+  display: flex !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  padding: 0 !important;
+  background: #020617 !important;
+  z-index: 2147483647 !important;
+}
+
+#gkaPlaylistOverlay.gka-pseudo-fullscreen #gkaPlaylistFrame {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column;
+  justify-content: center;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+  background: #020617 !important;
+}
+
+#gkaPlaylistOverlay.gka-pseudo-fullscreen #gkaPlaylistPlayer {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100dvh - 132px) !important;
+  object-fit: contain;
+}
 </style>
 
 
@@ -4119,9 +4156,78 @@ async function downloadGeneratedCombined(){
 function gkaPlaylistNext(){if(!gkaPlaylistItems.length)return;if(gkaPlaylistIndex>=gkaPlaylistItems.length-1){const p=document.getElementById('gkaPlaylistPlayer');if(p){p.pause();p.currentTime=0;}return;}gkaLoadPlaylistItem(gkaPlaylistIndex+1,true);}
 function gkaPlaylistPrevious(){if(gkaPlaylistItems.length)gkaLoadPlaylistItem(Math.max(0,gkaPlaylistIndex-1),true);}
 function gkaPlaylistToggle(){const p=document.getElementById('gkaPlaylistPlayer');if(!p)return;if(p.paused){const x=p.play();if(x?.catch)x.catch(()=>{});}else p.pause();}
-function toggleGkaPlaylistFullscreen(){const frame=document.getElementById('gkaPlaylistFrame');if(!frame)return;const active=document.fullscreenElement||document.webkitFullscreenElement;if(active){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit){try{const result=exit.call(document);if(result?.catch)result.catch(()=>{});}catch(_){}}return;}const request=frame.requestFullscreen||frame.webkitRequestFullscreen;if(request){try{const result=request.call(frame);if(result?.catch)result.catch(()=>{});}catch(_){}}}
-function closeGkaPlaylist(){const p=document.getElementById('gkaPlaylistPlayer');if(p){p.pause();p.removeAttribute('src');p.load();}gkaRevokePlaylistUrl();gkaPlaylistItems=[];gkaPlaylistIndex=0;const active=document.fullscreenElement||document.webkitFullscreenElement;if(active?.id==='gkaPlaylistFrame'){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit){try{const result=exit.call(document);if(result?.catch)result.catch(()=>{});}catch(_){}}}const o=document.getElementById('gkaPlaylistOverlay');if(o)o.style.display='none';}
-window.addEventListener('DOMContentLoaded',()=>{const p=document.getElementById('gkaPlaylistPlayer');if(p)p.addEventListener('ended',gkaPlaylistNext);});
+function gkaSetPseudoFullscreen(enabled){
+  const overlay=document.getElementById('gkaPlaylistOverlay');
+  if(!overlay)return;
+  overlay.classList.toggle('gka-pseudo-fullscreen',Boolean(enabled));
+  document.body.classList.toggle('gka-pseudo-fullscreen-open',Boolean(enabled));
+}
+
+function gkaIsAppleMobile(){
+  const ua=navigator.userAgent||'';
+  return /iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+}
+
+function gkaOpenPseudoFullscreen(){
+  gkaSetPseudoFullscreen(true);
+  try{window.scrollTo(0,0);}catch(_){}
+}
+
+function toggleGkaPlaylistFullscreen(){
+  const frame=document.getElementById('gkaPlaylistFrame');
+  const player=document.getElementById('gkaPlaylistPlayer');
+  const overlay=document.getElementById('gkaPlaylistOverlay');
+  if(!frame||!player||!overlay)return;
+
+  if(overlay.classList.contains('gka-pseudo-fullscreen')){
+    gkaSetPseudoFullscreen(false);
+    return;
+  }
+
+  const active=document.fullscreenElement||document.webkitFullscreenElement;
+  if(active){
+    const exit=document.exitFullscreen||document.webkitExitFullscreen;
+    if(exit){
+      try{
+        const result=exit.call(document);
+        if(result?.catch)result.catch(()=>gkaOpenPseudoFullscreen());
+      }catch(_){gkaOpenPseudoFullscreen();}
+    }else gkaSetPseudoFullscreen(false);
+    return;
+  }
+
+  /* iOS/iPadOS Safari only supports native fullscreen reliably on <video>. */
+  if(gkaIsAppleMobile()&&typeof player.webkitEnterFullscreen==='function'){
+    try{
+      player.webkitEnterFullscreen();
+      return;
+    }catch(_){}
+  }
+
+  const request=frame.requestFullscreen||frame.webkitRequestFullscreen||frame.msRequestFullscreen;
+  if(request){
+    try{
+      const result=request.call(frame,{navigationUI:'hide'});
+      if(result?.catch)result.catch(()=>gkaOpenPseudoFullscreen());
+      return;
+    }catch(_){
+      try{
+        const result=request.call(frame);
+        if(result?.catch)result.catch(()=>gkaOpenPseudoFullscreen());
+        return;
+      }catch(__){}
+    }
+  }
+
+  if(typeof player.webkitEnterFullscreen==='function'){
+    try{player.webkitEnterFullscreen();return;}catch(_){}
+  }
+  gkaOpenPseudoFullscreen();
+}
+
+function closeGkaPlaylist(){const p=document.getElementById('gkaPlaylistPlayer');if(p){p.pause();p.removeAttribute('src');p.load();}gkaRevokePlaylistUrl();gkaPlaylistItems=[];gkaPlaylistIndex=0;gkaSetPseudoFullscreen(false);const active=document.fullscreenElement||document.webkitFullscreenElement;if(active?.id==='gkaPlaylistFrame'){const exit=document.exitFullscreen||document.webkitExitFullscreen;if(exit){try{const result=exit.call(document);if(result?.catch)result.catch(()=>{});}catch(_){}}}const o=document.getElementById('gkaPlaylistOverlay');if(o)o.style.display='none';}
+window.addEventListener('DOMContentLoaded',()=>{const p=document.getElementById('gkaPlaylistPlayer');if(p){p.addEventListener('ended',gkaPlaylistNext);p.addEventListener('webkitendfullscreen',()=>gkaSetPseudoFullscreen(false));}});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){const o=document.getElementById('gkaPlaylistOverlay');if(o?.classList.contains('gka-pseudo-fullscreen'))gkaSetPseudoFullscreen(false);}});
 
 async function gkaRecordCombinedRanges(video, ranges) {
   if (!video) throw new Error('Video player not found.');

@@ -1950,14 +1950,14 @@ function deleteGeneratedClips() {
     return;
   }
 
-  const clipWord = selectedWithVideo.length === 1 ? 'clip' : 'clips';
+  const videoNames = [...new Set(selectedWithVideo.map(entry => entry._gkaVideoName))];
+  const clipWord = videoNames.length === 1 ? 'clip' : 'clips';
   const confirmed = confirm(
-    `Delete ${selectedWithVideo.length} generated ${clipWord}?\n\nActions, ratings and coach notes will remain.`
+    `Delete ${videoNames.length} generated ${clipWord}?\n\nActions, ratings and coach notes will remain.`
   );
   if (!confirmed) return;
 
   selectedWithVideo.forEach(entry => {
-    gkaVideoClips.delete(entry._gkaVideoName);
     delete entry._gkaVideoName;
     delete entry._gkaVideoMime;
     delete entry._gkaClipStart;
@@ -1965,10 +1965,11 @@ function deleteGeneratedClips() {
     delete entry._gkaVideoError;
     delete entry._clipNeedsRegeneration;
   });
+  gkaRemoveUnreferencedVideos(videoNames);
 
   renderLogTable();
-  gkaStatus(`${selectedWithVideo.length} generated ${clipWord} deleted. Actions and ratings remain.`);
-  alert(`${selectedWithVideo.length} generated ${clipWord} deleted.\nActions and ratings remain in Action Log.`);
+  gkaStatus(`${videoNames.length} generated ${clipWord} deleted. Actions and ratings remain.`);
+  alert(`${videoNames.length} generated ${clipWord} deleted.\nActions and ratings remain in Action Log.`);
 }
 
 function enterAnalysisMode() {
@@ -2643,7 +2644,7 @@ document.addEventListener('keydown', event => {
     if(fullBeforeEdit!==fullAfterEdit){
       entry.edited=true;
       entry.editedAt=new Date().toISOString();
-      if(clipBeforeEdit!==clipAfterEdit&&entry._gkaVideoName)entry._clipNeedsRegeneration=true;
+      if(clipBeforeEdit!==clipAfterEdit&&entry._gkaVideoName)gkaMarkSharedClipForRegeneration(entry);
     }
     rebuildMetricsFromHistory();rebuildMetricMultiFilter();closeActionEdit();render();
   }
@@ -2671,6 +2672,9 @@ document.addEventListener('keydown', event => {
   async function updateExistingActionClip(actionIndex) {
     const entry = actionHistory[actionIndex];
     if (!entry || entry.type !== 'score') throw new Error('Action not found.');
+    const linkedEntries = gkaEntriesSharingVideo(entry._gkaVideoName)
+      .sort((a,b)=>gkaEntrySeconds(a)-gkaEntrySeconds(b));
+    const overlayEntries = linkedEntries.length ? linkedEntries : [entry];
     let player=document.getElementById('videoPlayer');const file=document.getElementById('videoUpload')?.files?.[0];
     if(!player)throw new Error('Video player not found.');
     const eventTime=Number.isFinite(Number(entry.seconds))?Number(entry.seconds):parseTimestampToSeconds(entry.timestamp||'00:00');
@@ -2678,7 +2682,14 @@ document.addEventListener('keydown', event => {
     if(file){
       if(player.dataset.originalVideoUrl&&player.src!==player.dataset.originalVideoUrl){player.src=player.dataset.originalVideoUrl;player.load()}
       if(player.readyState<1)await gkaWaitForEvent(player,'loadedmetadata',20000);
-      start=Math.max(0,eventTime-before);duration=Math.max(.2,Math.min(before+after,Number.isFinite(player.duration)?player.duration-start:before+after));
+      if(overlayEntries.length>1){
+        start=Math.max(0,gkaEntrySeconds(overlayEntries[0])-GKA_CLIP_BEFORE);
+        const requestedEnd=gkaEntrySeconds(overlayEntries[overlayEntries.length-1])+GKA_CLIP_AFTER;
+        const end=Number.isFinite(player.duration)?Math.min(player.duration,requestedEnd):requestedEnd;
+        duration=Math.max(.2,end-start);
+      }else{
+        start=Math.max(0,eventTime-before);duration=Math.max(.2,Math.min(before+after,Number.isFinite(player.duration)?player.duration-start:before+after));
+      }
     }else{
       const oldBlob=entry._gkaVideoName&&gkaVideoClips.get(entry._gkaVideoName);if(!oldBlob)throw new Error('Load the original match to change the clip length.');
       player=await gkaLoadBlobIntoMainPlayer(oldBlob);const oldDuration=Number(entry._gkaClipDuration||player.duration||15);
@@ -2687,18 +2698,21 @@ document.addEventListener('keydown', event => {
     }
     showClipProgress(1,'Regenerating clip…');
     gkaStatus('Generating the clip with the new length…');
-    const recorded = await gkaRecordClipFromVideo(player, start, duration, 1, 1, entry);
+    const recorded = await gkaRecordClipFromVideo(player, start, duration, 1, 1, overlayEntries);
 
     // Replace the old clip in-place so GKA does not grow with duplicate versions.
     const oldName=entry._gkaVideoName;
     const filename=oldName||`videos/action_${String(actionHistory.filter(e=>e.type==='score').indexOf(entry)+1).padStart(3,'0')}.${gkaExtensionForMime(recorded.mimeType)}`;
     if(oldName&&oldName!==filename)gkaVideoClips.delete(oldName);
-    gkaVideoClips.set(filename, recorded.blob);entry._gkaVideoName=filename;
-    entry._gkaVideoMime = recorded.mimeType;
-    entry._gkaClipStart = start;
-    entry._gkaClipDuration = duration;
-    entry._clipNeedsRegeneration = false;
-    delete entry._gkaVideoError;
+    gkaVideoClips.set(filename, recorded.blob);
+    overlayEntries.forEach(item=>{
+      item._gkaVideoName=filename;
+      item._gkaVideoMime=recorded.mimeType;
+      item._gkaClipStart=start;
+      item._gkaClipDuration=duration;
+      item._clipNeedsRegeneration=false;
+      delete item._gkaVideoError;
+    });
 
     renderLogTable();
     finishClipProgress(1,1,0);
@@ -2743,7 +2757,7 @@ document.addEventListener('keydown', event => {
   }
 
 
-  function renderLogTable(){const logBody=document.getElementById('logBody');updateSelectedClipsCount();if(!logBody)return;const scoreEntries=actionHistory.filter(entry=>entry.type==='score');if(!scoreEntries.length){logBody.innerHTML='<tr><td colspan="8">No actions yet</td></tr>';return}const filteredHistory=getFilteredActionHistory();if(!filteredHistory.length){logBody.innerHTML='<tr><td colspan="8">No actions match the selected filters</td></tr>';return}logBody.innerHTML=filteredHistory.map((entry,index)=>{const normalizedScore=normalizeScoreValue(entry.value),rowClass=getRowClass(normalizedScore,entry.metric),scoreClass=getScoreClass(normalizedScore,entry.metric),historyIndex=actionHistory.indexOf(entry),key=gkaActionKey(entry,historyIndex).replace(/'/g,"\\'"),videoName=entry._gkaVideoName?String(entry._gkaVideoName).replace(/'/g,"\\'"):'';const edited=entry.edited?'<span class="edited-badge">Edited</span>':'',note=entry.note?`<span class="note-preview">${escapeHtml(entry.note)}</span>`:'';return `<tr class="${rowClass}"><td><input type="checkbox" ${entry._videoSelected?'checked':''} onchange="setActionVideoSelected('${key}',this.checked)"></td><td>${index+1}</td><td><button class="timestamp-link" onclick="seekVideoTo(Math.max(0, ${Number(entry.seconds||0).toFixed(3)} - 10))">${entry.timestamp}</button></td><td>${escapeHtml(entry.metric)} ${edited}${note}</td><td><span class="log-score-pill ${scoreClass}">${displayScoreValue(normalizedScore)}</span></td><td>${formatPoints(entry.points)}</td><td>${videoName?`<button class="timestamp-link" onclick="playImportedActionVideo('${videoName}')">▶ Video</button>`:(entry._gkaVideoError?'⚠ Video error':'')}</td><td><button type="button" class="timestamp-link" onclick="openActionEdit(${historyIndex})">✏️ Edit</button></td></tr>`}).join('')}
+  function renderLogTable(){const logBody=document.getElementById('logBody');updateSelectedClipsCount();if(!logBody)return;const scoreEntries=actionHistory.filter(entry=>entry.type==='score');if(!scoreEntries.length){logBody.innerHTML='<tr><td colspan="8">No actions yet</td></tr>';return}const filteredHistory=getFilteredActionHistory();if(!filteredHistory.length){logBody.innerHTML='<tr><td colspan="8">No actions match the selected filters</td></tr>';return}logBody.innerHTML=filteredHistory.map((entry,index)=>{const normalizedScore=normalizeScoreValue(entry.value),rowClass=getRowClass(normalizedScore,entry.metric),scoreClass=getScoreClass(normalizedScore,entry.metric),historyIndex=actionHistory.indexOf(entry),key=gkaActionKey(entry,historyIndex).replace(/'/g,"\\'"),videoName=entry._gkaVideoName?String(entry._gkaVideoName).replace(/'/g,"\\'"):'';const edited=entry.edited?'<span class="edited-badge">Edited</span>':'',note=entry.note?`<span class="note-preview">${escapeHtml(entry.note)}</span>`:'',mergedCount=entry._gkaVideoName?gkaEntriesSharingVideo(entry._gkaVideoName).length:0,mergedBadge=mergedCount>1?` <span class="edited-badge">MERGED ×${mergedCount}</span>`:'',updateBadge=entry._clipNeedsRegeneration?' <span class="edited-badge">🔄 UPDATE</span>':'';return `<tr class="${rowClass}"><td><input type="checkbox" ${entry._videoSelected?'checked':''} onchange="setActionVideoSelected('${key}',this.checked)"></td><td>${index+1}</td><td><button class="timestamp-link" onclick="seekVideoTo(Math.max(0, ${Number(entry.seconds||0).toFixed(3)} - 10))">${entry.timestamp}</button></td><td>${escapeHtml(entry.metric)} ${edited}${note}</td><td><span class="log-score-pill ${scoreClass}">${displayScoreValue(normalizedScore)}</span></td><td>${formatPoints(entry.points)}</td><td>${videoName?`<button class="timestamp-link" onclick="playImportedActionVideo('${videoName}')">▶ Video</button>${mergedBadge}${updateBadge}`:(entry._gkaVideoError?'⚠ Video error':'')}</td><td><button type="button" class="timestamp-link" onclick="openActionEdit(${historyIndex})">✏️ Edit</button></td></tr>`}).join('')}
 
   function renderStats() {
     const activeIsGoalsConcedet = isGoalsConcedetMetric(activeMetric);
@@ -3563,6 +3577,61 @@ const GKA_PACKAGE_VERSION = '1.3';
 const GKA_CLIP_BEFORE = 10;
 const GKA_CLIP_AFTER = 5;
 const gkaVideoClips = new Map(); // filename -> Blob
+
+function gkaEntrySeconds(entry) {
+  const seconds = Number(entry?.seconds);
+  return Math.max(0, Number.isFinite(seconds)
+    ? seconds
+    : parseTimestampToSeconds(entry?.timestamp || '00:00'));
+}
+
+function gkaEntriesSharingVideo(videoName) {
+  if (!videoName) return [];
+  return getVideoScoreEntries().filter(entry => entry._gkaVideoName === videoName);
+}
+
+function gkaUniqueClipEntries(entries) {
+  const seen = new Set();
+  return (entries || []).filter(entry => {
+    const name = entry?._gkaVideoName;
+    if (!name || !gkaVideoClips.has(name) || seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+}
+
+function gkaRemoveUnreferencedVideos(videoNames) {
+  new Set((videoNames || []).filter(Boolean)).forEach(name => {
+    if (!getVideoScoreEntries().some(entry => entry._gkaVideoName === name)) {
+      gkaVideoClips.delete(name);
+    }
+  });
+}
+
+function gkaMarkSharedClipForRegeneration(entry) {
+  const linked = gkaEntriesSharingVideo(entry?._gkaVideoName);
+  (linked.length ? linked : [entry]).filter(Boolean).forEach(item => {
+    item._clipNeedsRegeneration = true;
+  });
+}
+
+function gkaGenerationGroups(entries) {
+  const sorted = [...new Set(entries || [])].sort((a, b) => gkaEntrySeconds(a) - gkaEntrySeconds(b));
+  const groups = [];
+  for (const entry of sorted) {
+    const eventTime = gkaEntrySeconds(entry);
+    const start = Math.max(0, eventTime - GKA_CLIP_BEFORE);
+    const end = eventTime + GKA_CLIP_AFTER;
+    const current = groups[groups.length - 1];
+    if (current && start <= current.end + 0.001) {
+      current.entries.push(entry);
+      current.end = Math.max(current.end, end);
+    } else {
+      groups.push({ entries: [entry], start, end });
+    }
+  }
+  return groups;
+}
 let gkaFFmpeg = null;
 let gkaFFmpegLoading = null;
 let clipProgressStartedAt = 0;
@@ -3849,8 +3918,106 @@ function gkaWrapOverlayText(ctx, text, maxWidth, maxLines = 3) {
   return lines;
 }
 
+function gkaFitOverlayFont(ctx, text, maxWidth, startSize, minSize, family) {
+  let size = startSize;
+  while (size > minSize) {
+    ctx.font = `900 ${size}px ${family}`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+    size--;
+  }
+  return size;
+}
+
+function gkaDrawMergedActionOverlay(ctx, actionEntries, width) {
+  const entries = (actionEntries || []).filter(Boolean);
+  if (!entries.length) return;
+  const pad = Math.max(14, Math.round(width * 0.014));
+  const gap = Math.max(10, Math.round(width * 0.009));
+  const columns = entries.length > 3 ? 2 : entries.length;
+  const cardWidth = Math.floor((width - pad * 2 - gap * (columns - 1)) / columns);
+  const inner = Math.max(10, Math.round(width * 0.009));
+  const family = '"Arial Black", Arial, sans-serif';
+  let top = pad;
+
+  ctx.save();
+  ctx.textBaseline = 'top';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+
+  for (let rowStart = 0; rowStart < entries.length; rowStart += columns) {
+    const row = entries.slice(rowStart, rowStart + columns);
+    const prepared = row.map(entry => {
+      const metricText = `${entry.metric || ''} • ${displayScoreValue(normalizeScoreValue(entry.value))}`;
+      const metricSize = gkaFitOverlayFont(
+        ctx,
+        metricText,
+        cardWidth - inner * 2,
+        Math.max(20, Math.round(width * 0.025)),
+        15,
+        family
+      );
+      const noteSize = Math.max(15, Math.min(24, Math.round(metricSize * 0.72)));
+      ctx.font = `italic 500 ${noteSize}px "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive`;
+      const noteLines = entry.note
+        ? gkaWrapOverlayText(ctx, entry.note, cardWidth - inner * 2, 3)
+        : [];
+      const metricLineHeight = Math.round(metricSize * 1.18);
+      const noteLineHeight = Math.round(noteSize * 1.22);
+      const height = inner * 2 + metricLineHeight + (noteLines.length ? 5 + noteLines.length * noteLineHeight : 0);
+      return { entry, metricText, metricSize, noteSize, noteLines, metricLineHeight, noteLineHeight, height };
+    });
+    const rowHeight = Math.max(...prepared.map(item => item.height));
+
+    prepared.forEach((item, columnIndex) => {
+      const left = pad + columnIndex * (cardWidth + gap);
+      ctx.fillStyle = 'rgba(4,14,28,.78)';
+      ctx.strokeStyle = 'rgba(255,255,255,.28)';
+      ctx.lineWidth = 2;
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath();
+        ctx.roundRect(left, top, cardWidth, rowHeight, Math.max(8, Math.round(width * 0.008)));
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillRect(left, top, cardWidth, rowHeight);
+        ctx.strokeRect(left, top, cardWidth, rowHeight);
+      }
+
+      const textLeft = left + inner;
+      const textWidth = cardWidth - inner * 2;
+      ctx.font = `900 ${item.metricSize}px ${family}`;
+      ctx.lineWidth = Math.max(3, Math.round(item.metricSize * 0.13));
+      ctx.strokeStyle = 'rgba(0,0,0,.92)';
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeText(item.metricText, textLeft, top + inner, textWidth);
+      ctx.fillText(item.metricText, textLeft, top + inner, textWidth);
+
+      if (item.noteLines.length) {
+        ctx.font = `italic 500 ${item.noteSize}px "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive`;
+        ctx.lineWidth = Math.max(2, Math.round(item.noteSize * 0.12));
+        const noteTop = top + inner + item.metricLineHeight + 5;
+        item.noteLines.forEach((line, lineIndex) => {
+          const y = noteTop + lineIndex * item.noteLineHeight;
+          ctx.strokeText(line, textLeft, y, textWidth);
+          ctx.fillText(line, textLeft, y, textWidth);
+        });
+      }
+    });
+    top += rowHeight + gap;
+  }
+  ctx.restore();
+}
+
 function gkaDrawActionOverlay(ctx, actionEntry, width) {
-  if (!actionEntry) return;
+  const actionEntries = Array.isArray(actionEntry)
+    ? actionEntry.filter(Boolean)
+    : (Array.isArray(actionEntry?.entries) ? actionEntry.entries.filter(Boolean) : [actionEntry].filter(Boolean));
+  if (!actionEntries.length) return;
+  if (actionEntries.length > 1) {
+    gkaDrawMergedActionOverlay(ctx, actionEntries, width);
+    return;
+  }
+  actionEntry = actionEntries[0];
   const pad = Math.max(16, Math.round(width * 0.018));
   const maxTextWidth = width - pad * 2;
   const metricSize = Math.max(24, Math.round(width * 0.035));
@@ -3940,6 +4107,12 @@ async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalCl
     Number.isFinite(video.duration) ? video.duration : start + duration,
     start + duration
   );
+  const overlayEntries = Array.isArray(actionEntry)
+    ? actionEntry.filter(Boolean)
+    : (Array.isArray(actionEntry?.entries) ? actionEntry.entries.filter(Boolean) : [actionEntry].filter(Boolean));
+  const progressLabel = overlayEntries.length > 1
+    ? `${overlayEntries.length} overlapping actions`
+    : `${overlayEntries[0]?.timestamp||''} • ${overlayEntries[0]?.metric||''}`;
 
   const draw = () => {
     try {
@@ -3965,7 +4138,7 @@ async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalCl
     const tick = () => {
       const elapsed = (performance.now() - startedAt) / 1000;
       gkaStatus(`Generating clip ${clipIndex} / ${totalClips} — ${Math.min(duration, elapsed).toFixed(1)} / ${duration.toFixed(1)} sec`);
-      updateClipProgress(clipIndex,totalClips,Math.min(1,elapsed/Math.max(.2,duration)),`${actionEntry?.timestamp||''} • ${actionEntry?.metric||''}`);
+      updateClipProgress(clipIndex,totalClips,Math.min(1,elapsed/Math.max(.2,duration)),progressLabel);
       if (video.ended || video.currentTime >= endTime - 0.03 || elapsed >= duration + 3) return resolve();
       setTimeout(tick, 120);
     };
@@ -4015,11 +4188,11 @@ async function generateSelectedFromActionLog() {
 
 let gkaPlaylistItems=[],gkaPlaylistIndex=0,gkaPlaylistObjectUrl=null;
 function gkaPlaylistSeconds(e){const n=Number(e?.seconds);return Number.isFinite(n)?n:parseTimestampToSeconds(e?.timestamp||'00:00');}
-function gkaPlayableSelected(){return getSelectedActionLogEntries().filter(e=>e._gkaVideoName&&gkaVideoClips.has(e._gkaVideoName)).slice().sort((a,b)=>gkaPlaylistSeconds(a)-gkaPlaylistSeconds(b));}
-function gkaPlayableGenerated(){return getVideoScoreEntries().filter(e=>e._gkaVideoName&&gkaVideoClips.has(e._gkaVideoName)).slice().sort((a,b)=>gkaPlaylistSeconds(a)-gkaPlaylistSeconds(b));}
+function gkaPlayableSelected(){return gkaUniqueClipEntries(getSelectedActionLogEntries()).slice().sort((a,b)=>gkaPlaylistSeconds(a)-gkaPlaylistSeconds(b));}
+function gkaPlayableGenerated(){return gkaUniqueClipEntries(getVideoScoreEntries()).slice().sort((a,b)=>gkaPlaylistSeconds(a)-gkaPlaylistSeconds(b));}
 function gkaRevokePlaylistUrl(){if(gkaPlaylistObjectUrl){try{URL.revokeObjectURL(gkaPlaylistObjectUrl)}catch(_){}gkaPlaylistObjectUrl=null;}}
-function gkaLoadPlaylistItem(i,autoplay=true){const p=document.getElementById('gkaPlaylistPlayer'),info=document.getElementById('gkaPlaylistInfo');if(!p||!gkaPlaylistItems.length)return;gkaPlaylistIndex=Math.max(0,Math.min(i,gkaPlaylistItems.length-1));const e=gkaPlaylistItems[gkaPlaylistIndex],b=gkaVideoClips.get(e._gkaVideoName);if(!b)return gkaPlaylistNext();p.pause();gkaRevokePlaylistUrl();gkaPlaylistObjectUrl=URL.createObjectURL(b);p.src=gkaPlaylistObjectUrl;p.load();if(info)info.textContent=`${gkaPlaylistIndex+1} / ${gkaPlaylistItems.length} • ${e.timestamp||''} • ${e.metric||''} • ${displayScoreValue(normalizeScoreValue(e.value))}`;if(autoplay){const x=p.play();if(x?.catch)x.catch(()=>{});}}
-function playAllSelectedClips(){const s=getSelectedActionLogEntries();if(!s.length){alert('Select at least one action from the Action Log.');return;}const a=gkaPlayableSelected();if(!a.length){alert('The selected actions have no available clips. Generate the clips first or import a GKA file containing clips.');return;}if(a.length<s.length&&!confirm(`${s.length-a.length} of the selected actions have no video. Play the remaining ${a.length} clips?`))return;gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Selected Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
+function gkaLoadPlaylistItem(i,autoplay=true){const p=document.getElementById('gkaPlaylistPlayer'),info=document.getElementById('gkaPlaylistInfo');if(!p||!gkaPlaylistItems.length)return;gkaPlaylistIndex=Math.max(0,Math.min(i,gkaPlaylistItems.length-1));const e=gkaPlaylistItems[gkaPlaylistIndex],b=gkaVideoClips.get(e._gkaVideoName);if(!b)return gkaPlaylistNext();p.pause();gkaRevokePlaylistUrl();gkaPlaylistObjectUrl=URL.createObjectURL(b);p.src=gkaPlaylistObjectUrl;p.load();if(info){const linked=gkaEntriesSharingVideo(e._gkaVideoName).sort((a,b)=>gkaEntrySeconds(a)-gkaEntrySeconds(b));const details=(linked.length?linked:[e]).map(item=>`${item.metric||''} • ${displayScoreValue(normalizeScoreValue(item.value))}`).join('  |  ');info.textContent=`${gkaPlaylistIndex+1} / ${gkaPlaylistItems.length} • ${linked.length>1?`MERGED ×${linked.length}`:(e.timestamp||'')} • ${details}`;}if(autoplay){const x=p.play();if(x?.catch)x.catch(()=>{});}}
+function playAllSelectedClips(){const s=getSelectedActionLogEntries();if(!s.length){alert('Select at least one action from the Action Log.');return;}const a=gkaPlayableSelected();if(!a.length){alert('The selected actions have no available clips. Generate the clips first or import a GKA file containing clips.');return;}const missing=s.filter(e=>!(e._gkaVideoName&&gkaVideoClips.has(e._gkaVideoName)));if(missing.length&&!confirm(`${missing.length} of the selected actions have no video. Play the remaining ${a.length} clips?`))return;gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Selected Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
 function playAllGeneratedClips(){const a=gkaPlayableGenerated();if(!a.length){alert('There are no generated clips ready yet.');return;}gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Generated Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
 
 function openDownloadGeneratedPicker(){
@@ -4529,12 +4702,13 @@ async function exportSelectedFromActionLog() {
 
   const zip = new JSZip();
   const data = gkaBuildPackageData();
+  const readyClips = gkaUniqueClipEntries(ready);
 
   // Full analysis stays in the package; only Action Log-selected videos are included.
-  data.videos = ready.map(entry => entry._gkaVideoName);
+  data.videos = readyClips.map(entry => entry._gkaVideoName);
   data.selection = {
     requestedActions: selected.length,
-    includedVideos: ready.length,
+    includedVideos: readyClips.length,
     mode: 'action-log-selection'
   };
 
@@ -4542,7 +4716,7 @@ async function exportSelectedFromActionLog() {
   zip.file('actions.csv', buildGKAPackageCSV(data));
 
   const folder = zip.folder('videos');
-  ready.forEach(entry => {
+  readyClips.forEach(entry => {
     const blob = gkaVideoClips.get(entry._gkaVideoName);
     if (blob) {
       folder.file(entry._gkaVideoName.replace(/^videos\//, ''), blob);
@@ -4668,55 +4842,72 @@ async function generateActionVideos(options = {}) {
   if (!entries.length) { alert('No actions are selected for video.'); return; }
   if (!videoPlayer) { alert('Video player not found.'); return; }
 
-  const existingSelected = entries.filter(e => e._gkaVideoName && gkaVideoClips.has(e._gkaVideoName));
-  if (existingSelected.length && !options.forceExisting && !confirm(`For ${existingSelected.length} of the selected actions already have clips. Generate them again?`)) return;
+  const existingSelected = gkaUniqueClipEntries(entries);
+  if (existingSelected.length && !options.forceExisting && !confirm(`${existingSelected.length} of the selected generated clips already exist. Generate them again?`)) return;
 
   try {
-    showClipProgress(entries.length);
+    const groups = gkaGenerationGroups(entries);
+    showClipProgress(groups.length);
     if(videoPlayer.dataset.originalVideoUrl&&videoPlayer.src!==videoPlayer.dataset.originalVideoUrl){videoPlayer.src=videoPlayer.dataset.originalVideoUrl;videoPlayer.load()}
     if (videoPlayer.readyState < 1) await gkaWaitForEvent(videoPlayer, 'loadedmetadata', 20000);
 
     const totalDuration = Number.isFinite(videoPlayer.duration) ? Number(videoPlayer.duration) : null;
-    let success = 0;
+    let success = 0, successfulActions = 0;
 
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      const eventTime = Math.max(
-        0,
-        Number.isFinite(Number(entry.seconds))
-          ? Number(entry.seconds)
-          : parseTimestampToSeconds(entry.timestamp || '00:00')
-      );
-
-      const clipBefore = actionClipBefore(entry), clipAfter = actionClipAfter(entry);
-      const start = Math.max(0, eventTime - clipBefore);
-      let duration = clipBefore + clipAfter;
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      const groupEntries = group.entries;
+      const firstEntry = groupEntries[0];
+      const merged = groupEntries.length > 1;
+      let start, duration;
+      if (merged) {
+        start = group.start;
+        duration = group.end - group.start;
+      } else {
+        const eventTime = gkaEntrySeconds(firstEntry);
+        const clipBefore = actionClipBefore(firstEntry), clipAfter = actionClipAfter(firstEntry);
+        start = Math.max(0, eventTime - clipBefore);
+        duration = clipBefore + clipAfter;
+      }
       if (totalDuration !== null) {
         duration = Math.max(0.2, Math.min(duration, totalDuration - start));
       }
 
       try {
-        const previousVideoName = entry._gkaVideoName || null;
-        const recorded = await gkaRecordClipFromVideo(videoPlayer, start, duration, i + 1, entries.length, entry);
+        const previousVideoNames = groupEntries.map(entry => entry._gkaVideoName).filter(Boolean);
+        const formerLinkedEntries = [...new Set(previousVideoNames.flatMap(name => gkaEntriesSharingVideo(name)))]
+          .filter(entry => !groupEntries.includes(entry));
+        const recorded = await gkaRecordClipFromVideo(videoPlayer, start, duration, i + 1, groups.length, groupEntries);
         const ext = gkaExtensionForMime(recorded.mimeType);
 
-        // Stable file name based on the action's position in the complete Action Log.
-        const allIndex = allEntries.indexOf(entry);
-        const id = String(allIndex + 1).padStart(3, '0');
-        const filename = `videos/action_${id}.${ext}`;
+        // One selected action remains an individual clip. Overlapping selected
+        // actions share one automatically generated clip and one video name.
+        const ids = groupEntries.map(entry => String(allEntries.indexOf(entry) + 1).padStart(3, '0'));
+        const filename = merged
+          ? `videos/merged_${ids.join('_')}.${ext}`
+          : `videos/action_${ids[0]}.${ext}`;
 
-        if (previousVideoName && previousVideoName !== filename) gkaVideoClips.delete(previousVideoName);
         gkaVideoClips.set(filename, recorded.blob);
-        entry._gkaVideoName = filename;
-        entry._gkaVideoMime = recorded.mimeType;
-        entry._gkaClipStart = start;
-        entry._gkaClipDuration = duration;
-        entry._clipNeedsRegeneration = false;
-        delete entry._gkaVideoError;
+        groupEntries.forEach(entry => {
+          entry._gkaVideoName = filename;
+          entry._gkaVideoMime = recorded.mimeType;
+          entry._gkaClipStart = start;
+          entry._gkaClipDuration = duration;
+          entry._clipNeedsRegeneration = false;
+          delete entry._gkaVideoError;
+        });
+        // If only part of an old merged group was regenerated separately, the
+        // remaining shared clip still contains the previous overlay and must
+        // be regenerated before it is considered current.
+        formerLinkedEntries.forEach(entry => { entry._clipNeedsRegeneration = true; });
+        gkaRemoveUnreferencedVideos(previousVideoNames);
         success++;
+        successfulActions += groupEntries.length;
       } catch (clipError) {
         console.error('[GK Analysis] Clip failed:', clipError);
-        entry._gkaVideoError = clipError?.message || String(clipError);
+        groupEntries.forEach(entry => {
+          entry._gkaVideoError = clipError?.message || String(clipError);
+        });
       }
 
       // Release temporary browser work between clips.
@@ -4730,11 +4921,14 @@ async function generateActionVideos(options = {}) {
       videoPlayer.currentTime = 0;
     } catch (_) {}
 
-    const failed = entries.length - success;
-    gkaStatus(`Done — ${success} of ${entries.length} selected clips are ready.`);
-    finishClipProgress(success,entries.length,failed);
+    const failed = groups.length - success;
+    const mergedGroups = groups.filter(group => group.entries.length > 1);
+    const mergedActions = mergedGroups.reduce((sum, group) => sum + group.entries.length, 0);
+    gkaStatus(`Done — ${success} clips are ready for ${successfulActions} selected actions.`);
+    finishClipProgress(success,groups.length,failed);
     alert(
-      `Done! Generated ${success} of ${entries.length} selected clips.` +
+      `Done! Generated ${success} clips for ${successfulActions} selected actions.` +
+      (mergedGroups.length ? `\n${mergedActions} overlapping actions were combined into ${mergedGroups.length} clip${mergedGroups.length===1?'':'s'}.` : '') +
       (failed ? `\n${failed} clips failed and have been marked in the Action Log.` : '') +
       `\n\nThe remaining actions were not processed.`
     );
@@ -4821,12 +5015,13 @@ async function exportSelectedVideoPackage(){
 
   const zip = new JSZip();
   const d = gkaBuildPackageData();
+  const readyClips = gkaUniqueClipEntries(ready);
 
   // Keep ALL analysis/actions in the package, but include video files only for the selection.
-  d.videos = ready.map(x => x._gkaVideoName);
+  d.videos = readyClips.map(x => x._gkaVideoName);
   d.selection = {
     requestedActions: selected.length,
-    includedVideos: ready.length,
+    includedVideos: readyClips.length,
     mode: 'selected-videos-full-analysis'
   };
 
@@ -4834,7 +5029,7 @@ async function exportSelectedVideoPackage(){
   zip.file('actions.csv', buildGKAPackageCSV(d));
 
   const folder = zip.folder('videos');
-  ready.forEach(x => {
+  readyClips.forEach(x => {
     const b = gkaVideoClips.get(x._gkaVideoName);
     if (b) folder.file(x._gkaVideoName.replace(/^videos\//,''), b);
   });

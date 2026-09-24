@@ -1995,9 +1995,10 @@ function restoreAnalysisKeyboardFocus() {
   if (!document.body.classList.contains('analysis-mode')) return;
   const active=document.activeElement;
   if (active && typeof active.blur==='function') active.blur();
-  const player=document.getElementById('videoPlayer');
-  if (player && typeof player.focus==='function') {
-    try { player.focus({preventScroll:true}); } catch (_) { player.focus(); }
+  const focusTarget=document.body;
+  if (focusTarget && typeof focusTarget.focus==='function') {
+    if (!focusTarget.hasAttribute('tabindex')) focusTarget.setAttribute('tabindex','-1');
+    try { focusTarget.focus({preventScroll:true}); } catch (_) { focusTarget.focus(); }
   }
 }
 
@@ -3496,6 +3497,15 @@ document.addEventListener('keydown', event => {
       videoPlayer.src = url;
       videoPlayer.load();
     });
+
+    // Native video controls keep the keyboard focus after Play/Pause.
+    // Return it to Analysis Mode so Left/Right keep seeking while paused.
+    const restoreFocusAfterPlaybackChange = () => {
+      if (!document.body.classList.contains('analysis-mode')) return;
+      requestAnimationFrame(restoreAnalysisKeyboardFocus);
+    };
+    videoPlayer.addEventListener('pause', restoreFocusAfterPlaybackChange);
+    videoPlayer.addEventListener('play', restoreFocusAfterPlaybackChange);
 
     document.addEventListener('keydown', function(e) {
       const activeElement=document.activeElement;

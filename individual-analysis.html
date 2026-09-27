@@ -1344,6 +1344,24 @@ body.analysis-mode .rating-buttons .score-btn {
   height: auto;
   padding: 2px;
   border-radius: 8px;
+  position: relative;
+}
+
+body.analysis-mode .rating-buttons .score-btn[data-hotkey]::after {
+  content: attr(data-hotkey);
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.24);
+  color: inherit;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
 }
 
 body.analysis-mode .rating-buttons .score-code {
@@ -1593,37 +1611,37 @@ body.analysis-mode .hak-suite-bar{display:none!important}
     <h3 id="activeMetricLabel">No active metric</h3>
     <div class="score-panel-note">Select a card on the right, then rate the action using the buttons below.</div>
     <div class="rating-buttons">
-      <button class="score-btn top-btn" onclick="addScore('TOP')" title="Top intervention / decisive action" disabled>
+      <button class="score-btn top-btn" data-hotkey="1" onclick="addScore('TOP')" title="Top intervention / decisive action · Shortcut: 1" disabled>
         <span class="score-code">TOP</span>
         <span class="score-label">Top intervention</span>
         <span class="score-value">10</span>
       </button>
-      <button class="score-btn vg-btn" onclick="addScore('VG')" title="Very good intervention" disabled>
+      <button class="score-btn vg-btn" data-hotkey="2" onclick="addScore('VG')" title="Very good intervention · Shortcut: 2" disabled>
         <span class="score-code">VG</span>
         <span class="score-label">Very good</span>
         <span class="score-value">8.4</span>
       </button>
-      <button class="score-btn g-btn" onclick="addScore('G')" title="Good / correct action" disabled>
+      <button class="score-btn g-btn" data-hotkey="3" onclick="addScore('G')" title="Good / correct action · Shortcut: 3" disabled>
         <span class="score-code">G</span>
         <span class="score-label">Good action</span>
         <span class="score-value">6.7</span>
       </button>
-      <button class="score-btn" onclick="addScore('PUTIN0')" title="Neutral action" disabled style="background:#64748b;color:white;">
+      <button class="score-btn" data-hotkey="4" onclick="addScore('PUTIN0')" title="Neutral action · Shortcut: 4" disabled style="background:#64748b;color:white;">
         <span class="score-code">R</span>
         <span class="score-label">Routine</span>
         <span class="score-value">5</span>
       </button>
-      <button class="score-btn m-btn" onclick="addScore('M')" title="Mistake with no direct goal conceded" disabled>
+      <button class="score-btn m-btn" data-hotkey="5" onclick="addScore('M')" title="Mistake with no direct goal conceded · Shortcut: 5" disabled>
         <span class="score-code">M</span>
         <span class="score-label">Mistake</span>
         <span class="score-value">3.4</span>
       </button>
-      <button class="score-btn bm-btn" onclick="addScore('BM')" title="Big mistake leading to danger / big chance" disabled>
+      <button class="score-btn bm-btn" data-hotkey="6" onclick="addScore('BM')" title="Big mistake leading to danger / big chance · Shortcut: 6" disabled>
         <span class="score-code">BM</span>
         <span class="score-label">Big mistake</span>
         <span class="score-value">1.7</span>
       </button>
-      <button class="score-btn mfg-btn" onclick="addScore('MFG')" title="Mistake for goal" disabled>
+      <button class="score-btn mfg-btn" data-hotkey="7" onclick="addScore('MFG')" title="Mistake for goal · Shortcut: 7" disabled>
         <span class="score-code">MFG</span>
         <span class="score-label">Mistake for goal</span>
         <span class="score-value">-1</span>
@@ -2209,6 +2227,29 @@ document.addEventListener('keydown', event => {
     if (!metrics[name] && !isGoalsConcedetMetric(name) && !isMomentsMetric(name)) return;
     activeMetric = name;
     render();
+  }
+
+  function getAnalysisMetricNames() {
+    return [
+      ...(isGoalkeeperMode() ? [GOALS_CONCEDET_METRIC] : []),
+      MOMENTS_METRIC,
+      ...sortedMetricNames()
+    ];
+  }
+
+  function cycleAnalysisMetric(direction) {
+    const names = getAnalysisMetricNames();
+    if (!names.length) return;
+    const currentIndex = names.indexOf(activeMetric);
+    const startIndex = currentIndex >= 0 ? currentIndex : (direction > 0 ? -1 : 0);
+    const nextIndex = (startIndex + direction + names.length) % names.length;
+    selectMetric(names[nextIndex]);
+    requestAnimationFrame(() => {
+      const activeCard = [...document.querySelectorAll('#metricGrid .metric-card')]
+        .find(card => card.dataset.name === activeMetric);
+      activeCard?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      restoreAnalysisKeyboardFocus();
+    });
   }
 
   function addMetric() {
@@ -3521,6 +3562,49 @@ document.addEventListener('keydown', event => {
 
       if (playlistIsOpen||(isTyping&&typingControlIsVisible)) return;
 
+      const analysisMode=document.body.classList.contains('analysis-mode');
+      const shortcutOverlayIsOpen=['actionEditOverlay','clipProgressOverlay','downloadGeneratedPicker']
+        .some(id=>{
+          const element=document.getElementById(id);
+          return element&&getComputedStyle(element).display!=='none';
+        });
+
+      if (analysisMode&&!shortcutOverlayIsOpen&&!e.metaKey&&!e.ctrlKey&&!e.altKey) {
+        if (e.key==='ArrowUp') {
+          e.preventDefault();
+          cycleAnalysisMetric(-1);
+          return;
+        }
+
+        if (e.key==='ArrowDown') {
+          e.preventDefault();
+          cycleAnalysisMetric(1);
+          return;
+        }
+
+        const scoreShortcuts={
+          '1':'TOP',
+          '2':'VG',
+          '3':'G',
+          '4':'PUTIN0',
+          '5':'M',
+          '6':'BM',
+          '7':'MFG'
+        };
+        if (scoreShortcuts[e.key]) {
+          e.preventDefault();
+          if (!e.repeat) addScore(scoreShortcuts[e.key]);
+          return;
+        }
+
+        if (e.key==='Backspace') {
+          e.preventDefault();
+          if (!e.repeat) undoLastAction();
+          requestAnimationFrame(restoreAnalysisKeyboardFocus);
+          return;
+        }
+      }
+
       if (e.code === 'Space') {
         e.preventDefault();
         if (videoPlayer.paused) {
@@ -4063,6 +4147,50 @@ function gkaDrawActionOverlay(ctx, actionEntry, width) {
   ctx.restore();
 }
 
+const gkaExportWatermarkLogo = new Image();
+gkaExportWatermarkLogo.src = 'logo.png';
+
+function gkaDrawExportWatermark(ctx, canvas) {
+  const scale = Math.max(.45, Math.min(2.5, Math.min(canvas.width / 1920, canvas.height / 1080)));
+  const boxWidth = 326 * scale;
+  const boxHeight = 78 * scale;
+  const margin = 24 * scale;
+  const x = canvas.width - boxWidth - margin;
+  const y = canvas.height - boxHeight - margin;
+  const radius = 14 * scale;
+
+  ctx.save();
+  ctx.globalAlpha = .78;
+  ctx.fillStyle = 'rgba(3,13,23,.72)';
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + boxWidth - radius, y);
+  ctx.quadraticCurveTo(x + boxWidth, y, x + boxWidth, y + radius);
+  ctx.lineTo(x + boxWidth, y + boxHeight - radius);
+  ctx.quadraticCurveTo(x + boxWidth, y + boxHeight, x + boxWidth - radius, y + boxHeight);
+  ctx.lineTo(x + radius, y + boxHeight);
+  ctx.quadraticCurveTo(x, y + boxHeight, x, y + boxHeight - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.globalAlpha = .9;
+  if (gkaExportWatermarkLogo.complete && gkaExportWatermarkLogo.naturalWidth) {
+    ctx.filter = 'brightness(0) invert(1)';
+    ctx.drawImage(gkaExportWatermarkLogo, x + 12 * scale, y + 11 * scale, 56 * scale, 56 * scale);
+    ctx.filter = 'none';
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `900 ${22 * scale}px Inter, Arial, sans-serif`;
+  ctx.shadowColor = 'rgba(0,0,0,.8)';
+  ctx.shadowBlur = 5 * scale;
+  ctx.fillText('hak-analysis.com', x + 80 * scale, y + boxHeight / 2);
+  ctx.restore();
+}
+
 async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalClips, actionEntry = null) {
   if (!video) throw new Error('Video player not found.');
   if (typeof MediaRecorder === 'undefined') throw new Error('This browser does not support MediaRecorder.');
@@ -4128,6 +4256,7 @@ async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalCl
     try {
       ctx.drawImage(video, 0, 0, width, height);
       gkaDrawActionOverlay(ctx, actionEntry, width);
+      gkaDrawExportWatermark(ctx, canvas);
     } catch (_) {}
     if (!stopped) raf = requestAnimationFrame(draw);
   };
@@ -4476,6 +4605,7 @@ async function gkaRecordCombinedRanges(video, ranges) {
   const draw = () => {
     try {
       ctx.drawImage(video, 0, 0, width, height);
+      gkaDrawExportWatermark(ctx, canvas);
     } catch (_) {}
     if (drawing) raf = requestAnimationFrame(draw);
   };

@@ -1082,11 +1082,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   line-height: 1.1;
 }
 
- .clip-menu{position:relative;display:inline-block}
+ .clip-menu{position:relative;display:inline-block;z-index:10002}
  .clip-menu>summary{list-style:none;cursor:pointer;user-select:none}
  .clip-menu>summary::-webkit-details-marker{display:none}
- .clip-menu-items{position:absolute;z-index:50;top:calc(100% + 6px);left:0;min-width:245px;padding:7px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#101d30;box-shadow:0 14px 38px rgba(0,0,0,.45)}
+ .clip-menu-items{position:absolute;z-index:10003;top:calc(100% + 6px);left:0;min-width:245px;max-width:min(330px,calc(100vw - 24px));padding:7px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#101d30;box-shadow:0 14px 38px rgba(0,0,0,.45)}
  .clip-menu-items button{display:block;width:100%;margin:3px 0;text-align:left;white-space:nowrap}
+ .clip-menu:nth-of-type(2) .clip-menu-items{left:auto;right:0}
+ .clip-management-panel{position:relative;z-index:10000;overflow:visible!important}
+ .clip-management-buttons{overflow:visible!important}
+ .action-log-panel{position:relative;z-index:1}
+ @media(max-width:700px){.clip-menu-items{position:fixed;top:auto;left:12px!important;right:12px!important;width:auto;min-width:0;bottom:12px}}
 
 .clip-management-buttons .selected-clips-count {
   min-height: 40px;
@@ -3884,6 +3889,19 @@ window.addEventListener('message', event => {
   renderLogTable();
   gkaStatus('Telestrator version saved. Export a new GKA package to keep it.');
   alert('The Telestrator version has been saved in this analysis.\n\nExport a new GKA package to keep the changes.');
+});
+
+document.addEventListener('toggle', event => {
+  const menu = event.target;
+  if (!(menu instanceof HTMLDetailsElement) || !menu.classList.contains('clip-menu') || !menu.open) return;
+  document.querySelectorAll('.clip-menu[open]').forEach(other => {
+    if (other !== menu) other.removeAttribute('open');
+  });
+}, true);
+
+document.addEventListener('pointerdown', event => {
+  if (event.target.closest('.clip-menu')) return;
+  document.querySelectorAll('.clip-menu[open]').forEach(menu => menu.removeAttribute('open'));
 });
 
 window.addEventListener('beforeunload', event => {

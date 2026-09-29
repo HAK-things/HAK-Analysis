@@ -1082,6 +1082,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   line-height: 1.1;
 }
 
+ .clip-menu{position:relative;display:inline-block}
+ .clip-menu>summary{list-style:none;cursor:pointer;user-select:none}
+ .clip-menu>summary::-webkit-details-marker{display:none}
+ .clip-menu-items{position:absolute;z-index:50;top:calc(100% + 6px);left:0;min-width:245px;padding:7px;border:1px solid rgba(255,255,255,.16);border-radius:12px;background:#101d30;box-shadow:0 14px 38px rgba(0,0,0,.45)}
+ .clip-menu-items button{display:block;width:100%;margin:3px 0;text-align:left;white-space:nowrap}
+
 .clip-management-buttons .selected-clips-count {
   min-height: 40px;
   padding: 8px 12px;
@@ -1492,6 +1498,16 @@ body::before{opacity:.045!important}.page{width:min(1480px,calc(100% - 24px))!im
 .video-shell{border:1px solid rgba(90,178,244,.28)}table{border-radius:14px;overflow:hidden}th{background:#102b47!important;color:#eef8ff!important}td{border-color:rgba(255,255,255,.09)!important}.toolbar-actions .add-btn,.analysis-mode-entry{box-shadow:0 7px 15px rgba(0,0,0,.18)}
 body.analysis-mode .hak-suite-bar{display:none!important}
 @media(max-width:700px){.page{width:min(100% - 12px,1480px)!important}.app-header{min-height:62px;padding:8px 10px!important;gap:10px!important}.hak-title-logo{width:44px;height:44px}.app-header .title{font-size:clamp(16px,5vw,25px)!important;white-space:normal}}
+</style>
+<style id="hak-telestrator-integration-style">
+#gkaTelestratorOverlay{display:none;position:fixed;inset:0;z-index:22000;background:#020711;flex-direction:column}
+#gkaTelestratorOverlay.open{display:flex}
+.gka-telestrator-hostbar{min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 14px;background:linear-gradient(100deg,#030b17,#0b2948);color:#fff;border-bottom:1px solid rgba(57,168,255,.35)}
+.gka-telestrator-hostbar strong{letter-spacing:.08em}.gka-telestrator-hostbar span{color:#9ec7e8;font-size:13px}
+#gkaTelestratorFrame{display:block;width:100%;height:calc(100dvh - 52px);border:0;background:#06101d}
+.telestrator-ready-badge{display:inline-block;margin-left:5px;padding:2px 6px;border-radius:999px;background:rgba(37,216,138,.16);color:#79f2bb;font-size:11px;font-weight:900;white-space:nowrap}
+.clip-action-stack{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+@media(max-width:700px){.gka-telestrator-hostbar{padding:7px 9px}.gka-telestrator-hostbar span{display:none}#gkaTelestratorFrame{height:calc(100dvh - 50px)}}
 </style></head>
 <body><nav class="hak-suite-bar" aria-label="HAK Analysis navigation"><a href="index.html" class="hak-home-link"><span class="hak-home-icon">⌂</span><span>HAK ANALYSIS</span></a><span class="hak-suite-section">INDIVIDUAL ANALYSIS</span></nav>
 <div class="page">
@@ -1540,7 +1556,14 @@ body.analysis-mode .hak-suite-bar{display:none!important}
 
 
 
-  
+<div id="gkaTelestratorOverlay" aria-hidden="true">
+  <div class="gka-telestrator-hostbar">
+    <div><strong>HAK TELESTRATOR</strong> <span id="gkaTelestratorClipLabel">Generated clip</span></div>
+    <button type="button" class="add-btn" onclick="closeGkaTelestrator()">✕ CLOSE</button>
+  </div>
+  <iframe id="gkaTelestratorFrame" title="HAK Telestrator editor" allow="fullscreen"></iframe>
+</div>
+
 <div id="actionEditOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:13000;padding:18px;align-items:center;justify-content:center;">
   <div style="width:min(620px,100%);background:#0f172a;color:white;border-radius:18px;padding:18px;border:1px solid rgba(255,255,255,.16);">
     <h3 style="margin-top:0;">✏️ Edit Action</h3><input type="hidden" id="editActionIndex">
@@ -1702,9 +1725,15 @@ body.analysis-mode .hak-suite-bar{display:none!important}
     <div class="clip-management-buttons">
       <span id="selectedClipsCount" class="selected-clips-count">SELECTED: 0</span>
       <button class="add-btn" onclick="generateSelectedFromActionLog()">🎬 Generate Selected</button>
-      <button class="add-btn" onclick="playAllSelectedClips()">▶ Play Selected</button>
-      <button class="add-btn" onclick="playAllGeneratedClips()">▶ Play Generated</button>
-      <button class="add-btn" onclick="openDownloadGeneratedPicker()">⬇ Download Selected Generated</button>
+      <details class="clip-menu"><summary class="add-btn">▶ PLAY ▼</summary><div class="clip-menu-items">
+        <button class="add-btn" onclick="playAllSelectedClips();this.closest('details').removeAttribute('open')">▶ Play Selected</button>
+        <button class="add-btn" onclick="playAllGeneratedClips();this.closest('details').removeAttribute('open')">▶ Play Generated</button>
+        <button id="playTelestratorClipsBtn" class="add-btn" onclick="playAllTelestratorClips();this.closest('details').removeAttribute('open')" disabled>▶ Play Telestrator Clips (0)</button>
+      </div></details>
+      <details class="clip-menu"><summary class="add-btn">⬇ DOWNLOAD ▼</summary><div class="clip-menu-items">
+        <button class="add-btn" onclick="openDownloadGeneratedPicker();this.closest('details').removeAttribute('open')">⬇ Selected Generated</button>
+        <button id="downloadTelestratorClipsBtn" class="add-btn" onclick="downloadAllTelestratorClips();this.closest('details').removeAttribute('open')" disabled>⬇ All Telestrator Clips (0)</button>
+      </div></details>
       <button id="deleteGeneratedClipsBtn" class="delete-btn" onclick="deleteGeneratedClips()" disabled>DELETE GENERATED CLIPS</button>
     </div>
   </section>
@@ -1775,6 +1804,47 @@ body.analysis-mode .hak-suite-bar{display:none!important}
   let cleanSheetActive = false;
   let goalOutcomeSelected = false;
   let playerType = '';
+  let hakAnalysisDirty = false;
+  let hakNavigationGuardArmed = false;
+  let hakNavigationAllowed = false;
+
+  function hakMarkAnalysisDirty() {
+    hakAnalysisDirty = true;
+    if (hakNavigationGuardArmed || !window.history?.pushState) return;
+    history.pushState({ ...(history.state || {}), hakAnalysisGuard: true }, '', location.href);
+    hakNavigationGuardArmed = true;
+  }
+
+  function hakMarkAnalysisSaved() {
+    hakAnalysisDirty = false;
+  }
+
+  function hakLeaveAfterGuard() {
+    hakNavigationAllowed = true;
+    setTimeout(() => history.back(), 0);
+  }
+
+  window.addEventListener('popstate', () => {
+    if (hakNavigationAllowed || !hakNavigationGuardArmed) return;
+
+    // A saved analysis can leave immediately. The second history.back()
+    // skips the invisible guard entry that was added after the first edit.
+    if (!hakAnalysisDirty) {
+      hakLeaveAfterGuard();
+      return;
+    }
+
+    const leave = confirm(
+      'You have unsaved changes in this analysis.\n\n' +
+      'If you leave now, the latest work may be lost.\n\n' +
+      'Press OK to leave or Cancel to stay on the analysis.'
+    );
+    if (leave) {
+      hakLeaveAfterGuard();
+    } else {
+      history.pushState({ ...(history.state || {}), hakAnalysisGuard: true }, '', location.href);
+    }
+  });
 
   const SCORE_VALUES = {
     TOP: 10,
@@ -1808,6 +1878,7 @@ body.analysis-mode .hak-suite-bar{display:none!important}
   }
 
   function setPlayerType(value) {
+    const previousPlayerType = playerType;
     playerType = value === 'goalkeeper' || value === 'outfield' ? value : '';
     if (!isGoalkeeperMode()) {
       goalsConcedet = 0;
@@ -1817,6 +1888,7 @@ body.analysis-mode .hak-suite-bar{display:none!important}
     }
     const select = document.getElementById('playerType');
     if (select && select.value !== playerType) select.value = playerType;
+    if (playerType !== previousPlayerType) hakMarkAnalysisDirty();
     render();
   }
 
@@ -1985,6 +2057,7 @@ function deleteGeneratedClips() {
   });
   gkaRemoveUnreferencedVideos(videoNames);
 
+  hakMarkAnalysisDirty();
   renderLogTable();
   gkaStatus(`${videoNames.length} generated ${clipWord} deleted. Actions and ratings remain.`);
   alert(`${videoNames.length} generated ${clipWord} deleted.\nActions and ratings remain in Action Log.`);
@@ -2286,6 +2359,7 @@ document.addEventListener('keydown', event => {
 
     metrics[raw] = createMetricState();
     activeMetric = raw;
+    hakMarkAnalysisDirty();
     if (shouldRender) render();
     return true;
   }
@@ -2303,6 +2377,7 @@ document.addEventListener('keydown', event => {
 
     const remainingMetrics = sortedMetricNames();
     activeMetric = remainingMetrics.length ? remainingMetrics[0] : GOALS_CONCEDET_METRIC;
+    hakMarkAnalysisDirty();
     render();
   }
 
@@ -2337,6 +2412,7 @@ document.addEventListener('keydown', event => {
     goalOutcomeSelected = goalsConcedet > 0;
     cleanSheetActive = false;
     activeMetric = GOALS_CONCEDET_METRIC;
+    hakMarkAnalysisDirty();
 
     refreshLiveTotals();
     render();
@@ -2355,6 +2431,7 @@ document.addEventListener('keydown', event => {
     goalOutcomeSelected = cleanSheetActive;
     goalsConcedet = 0;
     activeMetric = GOALS_CONCEDET_METRIC;
+    hakMarkAnalysisDirty();
     render();
   }
 
@@ -2441,6 +2518,7 @@ document.addEventListener('keydown', event => {
         isMoment: true
       });
 
+      hakMarkAnalysisDirty();
       render();
       showRatingFeedback(MOMENTS_METRIC, value);
       return;
@@ -2459,6 +2537,7 @@ document.addEventListener('keydown', event => {
     });
 
     const scoredMetric=activeMetric;
+    hakMarkAnalysisDirty();
     render();
     showRatingFeedback(scoredMetric, value);
   }
@@ -2486,6 +2565,7 @@ document.addEventListener('keydown', event => {
       activeMetric = GOALS_CONCEDET_METRIC;
     }
 
+    hakMarkAnalysisDirty();
     render();
   }
 
@@ -2687,6 +2767,7 @@ document.addEventListener('keydown', event => {
       entry.edited=true;
       entry.editedAt=new Date().toISOString();
       if(clipBeforeEdit!==clipAfterEdit&&entry._gkaVideoName)gkaMarkSharedClipForRegeneration(entry);
+      hakMarkAnalysisDirty();
     }
     rebuildMetricsFromHistory();rebuildMetricMultiFilter();closeActionEdit();render();
   }
@@ -2745,6 +2826,7 @@ document.addEventListener('keydown', event => {
     // Replace the old clip in-place so GKA does not grow with duplicate versions.
     const oldName=entry._gkaVideoName;
     const filename=oldName||`videos/action_${String(actionHistory.filter(e=>e.type==='score').indexOf(entry)+1).padStart(3,'0')}.${gkaExtensionForMime(recorded.mimeType)}`;
+    if(oldName)gkaInvalidateTelestrator(oldName);
     if(oldName&&oldName!==filename)gkaVideoClips.delete(oldName);
     gkaVideoClips.set(filename, recorded.blob);
     overlayEntries.forEach(item=>{
@@ -2756,6 +2838,7 @@ document.addEventListener('keydown', event => {
       delete item._gkaVideoError;
     });
 
+    hakMarkAnalysisDirty();
     renderLogTable();
     finishClipProgress(1,1,0);
     gkaStatus('The clip has been updated with Metric • Score and Coach Note.');
@@ -2799,7 +2882,20 @@ document.addEventListener('keydown', event => {
   }
 
 
-  function renderLogTable(){const logBody=document.getElementById('logBody');updateSelectedClipsCount();if(!logBody)return;const scoreEntries=actionHistory.filter(entry=>entry.type==='score');if(!scoreEntries.length){logBody.innerHTML='<tr><td colspan="8">No actions yet</td></tr>';return}const filteredHistory=getFilteredActionHistory();if(!filteredHistory.length){logBody.innerHTML='<tr><td colspan="8">No actions match the selected filters</td></tr>';return}logBody.innerHTML=filteredHistory.map((entry,index)=>{const normalizedScore=normalizeScoreValue(entry.value),rowClass=getRowClass(normalizedScore,entry.metric),scoreClass=getScoreClass(normalizedScore,entry.metric),historyIndex=actionHistory.indexOf(entry),key=gkaActionKey(entry,historyIndex).replace(/'/g,"\\'"),videoName=entry._gkaVideoName?String(entry._gkaVideoName).replace(/'/g,"\\'"):'';const edited=entry.edited?'<span class="edited-badge">Edited</span>':'',note=entry.note?`<span class="note-preview">${escapeHtml(entry.note)}</span>`:'',mergedCount=entry._gkaVideoName?gkaEntriesSharingVideo(entry._gkaVideoName).length:0,mergedBadge=mergedCount>1?` <span class="edited-badge">MERGED ×${mergedCount}</span>`:'',updateBadge=entry._clipNeedsRegeneration?' <span class="edited-badge">🔄 UPDATE</span>':'';return `<tr class="${rowClass}"><td><input type="checkbox" ${entry._videoSelected?'checked':''} onchange="setActionVideoSelected('${key}',this.checked)"></td><td>${index+1}</td><td><button class="timestamp-link" onclick="seekVideoTo(Math.max(0, ${Number(entry.seconds||0).toFixed(3)} - 10))">${entry.timestamp}</button></td><td>${escapeHtml(entry.metric)} ${edited}${note}</td><td><span class="log-score-pill ${scoreClass}">${displayScoreValue(normalizedScore)}</span></td><td>${formatPoints(entry.points)}</td><td>${videoName?`<button class="timestamp-link" onclick="playImportedActionVideo('${videoName}')">▶ Video</button>${mergedBadge}${updateBadge}`:(entry._gkaVideoError?'⚠ Video error':'')}</td><td><button type="button" class="timestamp-link" onclick="openActionEdit(${historyIndex})">✏️ Edit</button></td></tr>`}).join('')}
+  function renderLogTable(){
+    const logBody=document.getElementById('logBody');updateSelectedClipsCount();if(!logBody)return;
+    const scoreEntries=actionHistory.filter(entry=>entry.type==='score');
+    if(!scoreEntries.length){logBody.innerHTML='<tr><td colspan="8">No actions yet</td></tr>';return}
+    const filteredHistory=getFilteredActionHistory();
+    if(!filteredHistory.length){logBody.innerHTML='<tr><td colspan="8">No actions match the selected filters</td></tr>';return}
+    logBody.innerHTML=filteredHistory.map((entry,index)=>{
+      const normalizedScore=normalizeScoreValue(entry.value),rowClass=getRowClass(normalizedScore,entry.metric),scoreClass=getScoreClass(normalizedScore,entry.metric),historyIndex=actionHistory.indexOf(entry),key=gkaActionKey(entry,historyIndex).replace(/'/g,"\\'"),videoName=entry._gkaVideoName?String(entry._gkaVideoName).replace(/'/g,"\\'"):'';
+      const edited=entry.edited?'<span class="edited-badge">Edited</span>':'',note=entry.note?`<span class="note-preview">${escapeHtml(entry.note)}</span>`:'',mergedCount=entry._gkaVideoName?gkaEntriesSharingVideo(entry._gkaVideoName).length:0,mergedBadge=mergedCount>1?` <span class="edited-badge">MERGED ×${mergedCount}</span>`:'',updateBadge=entry._clipNeedsRegeneration?' <span class="edited-badge">🔄 UPDATE</span>':'';
+      const hasFinal=!!(entry._gkaVideoName&&gkaTelestratorClips.has(entry._gkaVideoName));
+      const clipButtons=videoName?`<div class="clip-action-stack"><button class="timestamp-link" onclick="playImportedActionVideo('${videoName}')">▶ Original</button><button class="timestamp-link" onclick="openGkaTelestrator('${videoName}')">✏️ ${hasFinal?'Edit':'Telestrator'}</button>${hasFinal?`<button class="timestamp-link" onclick="playTelestratorVideo('${videoName}')">▶ Final</button><button class="timestamp-link" title="Delete Telestrator version" onclick="deleteTelestratorVersion('${videoName}')">×</button><span class="telestrator-ready-badge">READY</span>`:''}</div>${mergedBadge}${updateBadge}`:(entry._gkaVideoError?'⚠ Video error':'');
+      return `<tr class="${rowClass}"><td><input type="checkbox" ${entry._videoSelected?'checked':''} onchange="setActionVideoSelected('${key}',this.checked)"></td><td>${index+1}</td><td><button class="timestamp-link" onclick="seekVideoTo(Math.max(0, ${Number(entry.seconds||0).toFixed(3)} - 10))">${entry.timestamp}</button></td><td>${escapeHtml(entry.metric)} ${edited}${note}</td><td><span class="log-score-pill ${scoreClass}">${displayScoreValue(normalizedScore)}</span></td><td>${formatPoints(entry.points)}</td><td>${clipButtons}</td><td><button type="button" class="timestamp-link" onclick="openActionEdit(${historyIndex})">✏️ Edit</button></td></tr>`
+    }).join('')
+  }
 
   function renderStats() {
     const activeIsGoalsConcedet = isGoalsConcedetMetric(activeMetric);
@@ -3448,10 +3544,11 @@ document.addEventListener('keydown', event => {
   try{
     const name=file.name.toLowerCase();
     if(name.endsWith('.gka')||name.endsWith('.zip')||file.type==='application/zip'||file.type==='application/octet-stream'){
-      await importGKAPackage(file); render(); alert(`Import successful. ${gkaVideoClips.size} video clips have been loaded.`); return;
+      await importGKAPackage(file); hakMarkAnalysisSaved(); render(); alert(`Import successful. ${gkaVideoClips.size} video clips have been loaded.`); return;
     }
     const text=await readImportFile(file);
     if(name.endsWith('.json')) importFromJSONText(text); else if(name.endsWith('.csv')) importFromCSVText(text); else { const t=text.trim(); if(t.startsWith('{')) importFromJSONText(text); else importFromCSVText(text); }
+    hakMarkAnalysisSaved();
     alert('Import successful.');
   }catch(error){console.error(error);alert('Import failed: '+(error?.message||error));}finally{event.target.value='';}
 }
@@ -3648,9 +3745,12 @@ document.addEventListener('keydown', event => {
     }
   });
 
-  document.getElementById('playerName').addEventListener('input', render);
-  document.getElementById('matchDate').addEventListener('input', render);
-  document.getElementById('matchOpponent').addEventListener('input', render);
+  ['playerName', 'matchDate', 'matchOpponent'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      hakMarkAnalysisDirty();
+      render();
+    });
+  });
   document.getElementById('importFileInput').addEventListener('change', handleImportFile);
   document.querySelector('.action-log-panel')?.addEventListener('toggle', updateActionLogToggle);
   document.getElementById('actionLogSortFilter')?.addEventListener('change', renderLogTable);
@@ -3667,10 +3767,130 @@ document.addEventListener('keydown', event => {
    The receiver imports the .gka and does NOT need the full match.
    ============================================================ */
 
-const GKA_PACKAGE_VERSION = '1.3';
+const GKA_PACKAGE_VERSION = '1.4';
 const GKA_CLIP_BEFORE = 10;
 const GKA_CLIP_AFTER = 5;
 const gkaVideoClips = new Map(); // filename -> Blob
+const gkaTelestratorProjects = new Map(); // original video filename -> editable project
+const gkaTelestratorClips = new Map(); // original video filename -> { filename, blob, mimeType, updatedAt }
+let gkaTelestratorSourceKey = '';
+let gkaTelestratorPendingPayload = null;
+let gkaTelestratorDirty = false;
+
+function gkaTelestratorEntry(videoName) {
+  return videoName ? gkaTelestratorClips.get(videoName) || null : null;
+}
+
+function gkaTelestratorFinalName(sourceName, extension = 'mp4') {
+  const base = String(sourceName || 'clip').replace(/^videos\//, '').replace(/\.[^.]+$/, '');
+  return `telestrator/${base}_telestrator.${extension || 'mp4'}`;
+}
+
+function gkaInvalidateTelestrator(videoName) {
+  if (!videoName) return;
+  gkaTelestratorProjects.delete(videoName);
+  gkaTelestratorClips.delete(videoName);
+  updateTelestratorPlayButton();
+}
+
+function updateTelestratorPlayButton() {
+  const button = document.getElementById('playTelestratorClipsBtn');
+  if (!button) return;
+  const count = gkaTelestratorClips.size;
+  button.textContent = `▶ Play Telestrator Clips (${count})`;
+  button.disabled = count === 0;
+  const downloadButton = document.getElementById('downloadTelestratorClipsBtn');
+  if (downloadButton) { downloadButton.textContent = `⬇ All Telestrator Clips (${count})`; downloadButton.disabled = count === 0; }
+}
+
+function sendPendingClipToTelestrator() {
+  const frame = document.getElementById('gkaTelestratorFrame');
+  if (!frame?.contentWindow || !gkaTelestratorPendingPayload) return;
+  frame.contentWindow.postMessage(gkaTelestratorPendingPayload, '*');
+}
+
+function openGkaTelestrator(videoName) {
+  const blob = gkaVideoClips.get(videoName);
+  if (!blob) { alert('This generated clip is not available in the current GKA package.'); return; }
+  gkaTelestratorSourceKey = videoName;
+  gkaTelestratorPendingPayload = {
+    type: 'HAK_TELESTRATOR_OPEN',
+    sourceKey: videoName,
+    sourceName: videoName.replace(/^videos\//, ''),
+    blob,
+    project: gkaTelestratorProjects.get(videoName) || null
+  };
+  const overlay = document.getElementById('gkaTelestratorOverlay');
+  const frame = document.getElementById('gkaTelestratorFrame');
+  const label = document.getElementById('gkaTelestratorClipLabel');
+  if (label) label.textContent = videoName.replace(/^videos\//, '');
+  if (overlay) { overlay.classList.add('open'); overlay.setAttribute('aria-hidden', 'false'); }
+  document.body.style.overflow = 'hidden';
+  if (frame && !frame.src) {
+    frame.onload = sendPendingClipToTelestrator;
+    frame.src = 'video-board.html?embed=1';
+  } else {
+    sendPendingClipToTelestrator();
+  }
+}
+
+function closeGkaTelestrator() {
+  const overlay = document.getElementById('gkaTelestratorOverlay');
+  if (overlay) { overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true'); }
+  document.body.style.overflow = '';
+}
+
+function playTelestratorVideo(videoName) {
+  const item = gkaTelestratorEntry(videoName);
+  if (!item?.blob) { alert('There is no saved Telestrator version for this clip.'); return; }
+  const player = document.getElementById('videoPlayer');
+  if (!player) return;
+  if (player.dataset.gkaObjectUrl) URL.revokeObjectURL(player.dataset.gkaObjectUrl);
+  const url = URL.createObjectURL(item.blob);
+  player.dataset.gkaObjectUrl = url;
+  player.src = url;
+  player.load();
+  player.play().catch(() => {});
+  player.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function deleteTelestratorVersion(videoName) {
+  if (!gkaTelestratorClips.has(videoName) && !gkaTelestratorProjects.has(videoName)) return;
+  if (!confirm('Delete the Telestrator version and its editable project?\n\nThe original generated clip will remain.')) return;
+  gkaInvalidateTelestrator(videoName);
+  gkaTelestratorDirty = true;
+  hakMarkAnalysisDirty();
+  updateTelestratorPlayButton();
+  renderLogTable();
+}
+
+window.addEventListener('message', event => {
+  const data = event.data;
+  if (!data || typeof data !== 'object') return;
+  if (data.type === 'HAK_TELESTRATOR_READY') { sendPendingClipToTelestrator(); return; }
+  if (data.type !== 'HAK_TELESTRATOR_SAVED' || !data.sourceKey || !data.blob) return;
+  const extension = data.extension || (String(data.mimeType).includes('mp4') ? 'mp4' : 'webm');
+  gkaTelestratorProjects.set(data.sourceKey, data.project || null);
+  gkaTelestratorClips.set(data.sourceKey, {
+    filename: gkaTelestratorFinalName(data.sourceKey, extension),
+    blob: data.blob,
+    mimeType: data.mimeType || data.blob.type || 'video/webm',
+    updatedAt: new Date().toISOString()
+  });
+  gkaTelestratorDirty = true;
+  hakMarkAnalysisDirty();
+  closeGkaTelestrator();
+  updateTelestratorPlayButton();
+  renderLogTable();
+  gkaStatus('Telestrator version saved. Export a new GKA package to keep it.');
+  alert('The Telestrator version has been saved in this analysis.\n\nExport a new GKA package to keep the changes.');
+});
+
+window.addEventListener('beforeunload', event => {
+  if (hakNavigationAllowed || (!hakAnalysisDirty && !gkaTelestratorDirty)) return;
+  event.preventDefault();
+  event.returnValue = '';
+});
 
 function gkaEntrySeconds(entry) {
   const seconds = Number(entry?.seconds);
@@ -3698,6 +3918,7 @@ function gkaRemoveUnreferencedVideos(videoNames) {
   new Set((videoNames || []).filter(Boolean)).forEach(name => {
     if (!getVideoScoreEntries().some(entry => entry._gkaVideoName === name)) {
       gkaVideoClips.delete(name);
+      gkaInvalidateTelestrator(name);
     }
   });
 }
@@ -3821,6 +4042,39 @@ function gkaBuildPackageData() {
     videos: Array.from(gkaVideoClips.keys()),
     sourceVideo: document.getElementById('videoUpload')?.files?.[0]?.name || null
   };
+}
+
+function gkaAttachTelestratorToPackage(zip, sourceNames, data) {
+  const allowed = new Set(sourceNames || []);
+  const projects = {};
+  const summary = [];
+  for (const sourceName of allowed) {
+    const project = gkaTelestratorProjects.get(sourceName);
+    const final = gkaTelestratorClips.get(sourceName);
+    if (!project && !final) continue;
+    if (final?.blob && final.filename) zip.file(final.filename, final.blob);
+    projects[sourceName] = {
+      project: project || null,
+      finalVideo: final?.filename || null,
+      mimeType: final?.mimeType || null,
+      updatedAt: final?.updatedAt || project?.updatedAt || null
+    };
+    summary.push({
+      sourceVideo: sourceName,
+      finalVideo: final?.filename || null,
+      mimeType: final?.mimeType || null,
+      editable: !!project,
+      updatedAt: final?.updatedAt || project?.updatedAt || null
+    });
+  }
+  data.telestrator = { formatVersion: '1.0', projects: summary };
+  if (summary.length) {
+    zip.file('telestrator/projects.json', JSON.stringify({
+      format: 'HAK_TELESTRATOR_PROJECTS',
+      version: '1.0',
+      projects
+    }, null, 2));
+  }
 }
 
 async function gkaLoadFFmpeg() {
@@ -4325,14 +4579,29 @@ async function generateSelectedFromActionLog() {
 
 
 
-let gkaPlaylistItems=[],gkaPlaylistIndex=0,gkaPlaylistObjectUrl=null;
+let gkaPlaylistItems=[],gkaPlaylistIndex=0,gkaPlaylistObjectUrl=null,gkaPlaylistSource='original';
 function gkaPlaylistSeconds(e){const n=Number(e?.seconds);return Number.isFinite(n)?n:parseTimestampToSeconds(e?.timestamp||'00:00');}
 function gkaPlayableSelected(){return gkaUniqueClipEntries(getSelectedActionLogEntries()).slice().sort((a,b)=>gkaPlaylistSeconds(a)-gkaPlaylistSeconds(b));}
 function gkaPlayableGenerated(){return gkaUniqueClipEntries(getVideoScoreEntries()).slice().sort((a,b)=>gkaPlaylistSeconds(a)-gkaPlaylistSeconds(b));}
+function gkaPlayableTelestrator(){return gkaPlayableGenerated().filter(e=>gkaTelestratorClips.has(e._gkaVideoName));}
 function gkaRevokePlaylistUrl(){if(gkaPlaylistObjectUrl){try{URL.revokeObjectURL(gkaPlaylistObjectUrl)}catch(_){}gkaPlaylistObjectUrl=null;}}
-function gkaLoadPlaylistItem(i,autoplay=true){const p=document.getElementById('gkaPlaylistPlayer'),info=document.getElementById('gkaPlaylistInfo');if(!p||!gkaPlaylistItems.length)return;gkaPlaylistIndex=Math.max(0,Math.min(i,gkaPlaylistItems.length-1));const e=gkaPlaylistItems[gkaPlaylistIndex],b=gkaVideoClips.get(e._gkaVideoName);if(!b)return gkaPlaylistNext();p.pause();gkaRevokePlaylistUrl();gkaPlaylistObjectUrl=URL.createObjectURL(b);p.src=gkaPlaylistObjectUrl;p.load();if(info){const linked=gkaEntriesSharingVideo(e._gkaVideoName).sort((a,b)=>gkaEntrySeconds(a)-gkaEntrySeconds(b));const details=(linked.length?linked:[e]).map(item=>`${item.metric||''} • ${displayScoreValue(normalizeScoreValue(item.value))}`).join('  |  ');info.textContent=`${gkaPlaylistIndex+1} / ${gkaPlaylistItems.length} • ${linked.length>1?`MERGED ×${linked.length}`:(e.timestamp||'')} • ${details}`;}if(autoplay){const x=p.play();if(x?.catch)x.catch(()=>{});}}
-function playAllSelectedClips(){const s=getSelectedActionLogEntries();if(!s.length){alert('Select at least one action from the Action Log.');return;}const a=gkaPlayableSelected();if(!a.length){alert('The selected actions have no available clips. Generate the clips first or import a GKA file containing clips.');return;}const missing=s.filter(e=>!(e._gkaVideoName&&gkaVideoClips.has(e._gkaVideoName)));if(missing.length&&!confirm(`${missing.length} of the selected actions have no video. Play the remaining ${a.length} clips?`))return;gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Selected Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
-function playAllGeneratedClips(){const a=gkaPlayableGenerated();if(!a.length){alert('There are no generated clips ready yet.');return;}gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Generated Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
+function gkaLoadPlaylistItem(i,autoplay=true){const p=document.getElementById('gkaPlaylistPlayer'),info=document.getElementById('gkaPlaylistInfo');if(!p||!gkaPlaylistItems.length)return;gkaPlaylistIndex=Math.max(0,Math.min(i,gkaPlaylistItems.length-1));const e=gkaPlaylistItems[gkaPlaylistIndex],final=gkaTelestratorClips.get(e._gkaVideoName),b=gkaPlaylistSource==='telestrator'?final?.blob:gkaVideoClips.get(e._gkaVideoName);if(!b)return gkaPlaylistNext();p.pause();gkaRevokePlaylistUrl();gkaPlaylistObjectUrl=URL.createObjectURL(b);p.src=gkaPlaylistObjectUrl;p.load();if(info){const linked=gkaEntriesSharingVideo(e._gkaVideoName).sort((a,b)=>gkaEntrySeconds(a)-gkaEntrySeconds(b));const details=(linked.length?linked:[e]).map(item=>`${item.metric||''} • ${displayScoreValue(normalizeScoreValue(item.value))}`).join('  |  ');const version=gkaPlaylistSource==='telestrator'?'TELESTRATOR • ':'';info.textContent=`${gkaPlaylistIndex+1} / ${gkaPlaylistItems.length} • ${version}${linked.length>1?`MERGED ×${linked.length}`:(e.timestamp||'')} • ${details}`;}if(autoplay){const x=p.play();if(x?.catch)x.catch(()=>{});}}
+function playAllSelectedClips(){const s=getSelectedActionLogEntries();if(!s.length){alert('Select at least one action from the Action Log.');return;}const a=gkaPlayableSelected();if(!a.length){alert('The selected actions have no available clips. Generate the clips first or import a GKA file containing clips.');return;}const missing=s.filter(e=>!(e._gkaVideoName&&gkaVideoClips.has(e._gkaVideoName)));if(missing.length&&!confirm(`${missing.length} of the selected actions have no video. Play the remaining ${a.length} clips?`))return;gkaPlaylistSource='original';gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Selected Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
+function playAllGeneratedClips(){const a=gkaPlayableGenerated();if(!a.length){alert('There are no generated clips ready yet.');return;}gkaPlaylistSource='original';gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent='▶ Play All Generated Clips';document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
+function playAllTelestratorClips(){const a=gkaPlayableTelestrator();if(!a.length){alert('There are no saved Telestrator clips yet.');updateTelestratorPlayButton();return;}gkaPlaylistSource='telestrator';gkaPlaylistItems=a;gkaPlaylistIndex=0;const title=document.getElementById('gkaPlaylistTitle');if(title)title.textContent=`▶ Play Telestrator Clips (${a.length})`;document.getElementById('gkaPlaylistOverlay').style.display='flex';gkaLoadPlaylistItem(0,true);}
+
+async function downloadAllTelestratorClips(){
+  const clips=gkaPlayableTelestrator();
+  if(!clips.length){alert('There are no saved Telestrator clips yet.');updateTelestratorPlayButton();return;}
+  if(clips.length===1){const item=gkaTelestratorClips.get(clips[0]._gkaVideoName);downloadFile(String(item.filename||'telestrator-clip.webm').replace(/^telestrator\//,''),item.blob,item.mimeType||item.blob.type);return;}
+  if(typeof JSZip==='undefined'){alert('The ZIP library is not loaded.');return;}
+  const zip=new JSZip(),folder=zip.folder('telestrator-clips');
+  clips.forEach((entry,index)=>{const item=gkaTelestratorClips.get(entry._gkaVideoName);if(!item?.blob)return;const original=String(item.filename||entry._gkaVideoName||'clip.webm').replace(/^telestrator\//,'');folder.file(`${String(index+1).padStart(3,'0')}_${original}`,item.blob);});
+  gkaStatus('Packing Telestrator clips…');
+  const output=await zip.generateAsync({type:'blob',compression:'STORE'},meta=>gkaStatus(`Packing Telestrator clips… ${Math.round(meta.percent)}%`));
+  downloadFile(`${buildSafeFilename()}_telestrator_${clips.length}_clips.zip`,output,'application/zip');
+  gkaStatus(`Downloaded ${clips.length} Telestrator clips.`);
+}
 
 function openDownloadGeneratedPicker(){
   const selected=getSelectedActionLogEntries();
@@ -4852,6 +5121,7 @@ async function exportSelectedFromActionLog() {
     mode: 'action-log-selection'
   };
 
+  gkaAttachTelestratorToPackage(zip, readyClips.map(entry => entry._gkaVideoName), data);
   zip.file('analysis.json', JSON.stringify(data, null, 2));
   zip.file('actions.csv', buildGKAPackageCSV(data));
 
@@ -4877,6 +5147,8 @@ async function exportSelectedFromActionLog() {
     packageBlob,
     'application/octet-stream'
   );
+  gkaTelestratorDirty = false;
+  hakMarkAnalysisSaved();
 
   alert(
     `Done! Exported ${ready.length} video clips from ${selected.length} selected actions.\n\nThe complete analysis remains in the GKA package.`
@@ -5027,6 +5299,7 @@ async function generateActionVideos(options = {}) {
           ? `videos/merged_${ids.join('_')}.${ext}`
           : `videos/action_${ids[0]}.${ext}`;
 
+        previousVideoNames.forEach(gkaInvalidateTelestrator);
         gkaVideoClips.set(filename, recorded.blob);
         groupEntries.forEach(entry => {
           entry._gkaVideoName = filename;
@@ -5041,6 +5314,7 @@ async function generateActionVideos(options = {}) {
         // be regenerated before it is considered current.
         formerLinkedEntries.forEach(entry => { entry._clipNeedsRegeneration = true; });
         gkaRemoveUnreferencedVideos(previousVideoNames);
+        hakMarkAnalysisDirty();
         success++;
         successfulActions += groupEntries.length;
       } catch (clipError) {
@@ -5165,6 +5439,7 @@ async function exportSelectedVideoPackage(){
     mode: 'selected-videos-full-analysis'
   };
 
+  gkaAttachTelestratorToPackage(zip, readyClips.map(x => x._gkaVideoName), d);
   zip.file('analysis.json', JSON.stringify(d, null, 2));
   zip.file('actions.csv', buildGKAPackageCSV(d));
 
@@ -5179,6 +5454,8 @@ async function exportSelectedVideoPackage(){
     m => gkaStatus(`Packing selected clips... ${Math.round(m.percent)}%`)
   );
   downloadFile(`${buildSafeFilename()}_selected.gka`, blob, 'application/octet-stream');
+  gkaTelestratorDirty = false;
+  hakMarkAnalysisSaved();
   closeVideoExportPicker();
 }
 
@@ -5222,6 +5499,9 @@ async function importGKAPackage(file) {
 
   resetAppState();
   gkaVideoClips.clear();
+  gkaTelestratorProjects.clear();
+  gkaTelestratorClips.clear();
+  gkaTelestratorDirty = false;
   document.getElementById('playerName').value = data.match?.player || data.match?.goalkeeper || '';
   document.getElementById('matchDate').value = data.match?.date || '';
   document.getElementById('matchOpponent').value = data.match?.opponent || '';
@@ -5281,10 +5561,38 @@ async function importGKAPackage(file) {
     gkaVideoClips.set(filename, new Blob([bytes], {type:mt}));
   }
 
+  const telestratorProjectFile = zip.file('telestrator/projects.json');
+  let telestratorStore = null;
+  if (telestratorProjectFile) {
+    try { telestratorStore = JSON.parse(await telestratorProjectFile.async('text')); }
+    catch (error) { console.warn('[GK Analysis] Telestrator project data could not be read.', error); }
+  }
+  const telestratorSummary = Array.isArray(data.telestrator?.projects) ? data.telestrator.projects : [];
+  for (const item of telestratorSummary) {
+    const sourceName = item?.sourceVideo;
+    if (!sourceName) continue;
+    const saved = telestratorStore?.projects?.[sourceName] || null;
+    if (saved?.project) gkaTelestratorProjects.set(sourceName, saved.project);
+    const finalName = item.finalVideo || saved?.finalVideo;
+    if (!finalName) continue;
+    const finalFile = zip.file(finalName);
+    if (!finalFile) continue;
+    const bytes = await finalFile.async('uint8array');
+    const mimeType = item.mimeType || saved?.mimeType || (String(finalName).toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'video/webm');
+    gkaTelestratorClips.set(sourceName, {
+      filename: finalName,
+      blob: new Blob([bytes], { type: mimeType }),
+      mimeType,
+      updatedAt: item.updatedAt || saved?.updatedAt || null
+    });
+  }
+
+  updateTelestratorPlayButton();
+
   const names = sortedMetricNames();
   activeMetric = names.length ? names[0] : (isGoalkeeperMode() ? GOALS_CONCEDET_METRIC : MOMENTS_METRIC);
   render();
-  gkaStatus(`Imported ${actionHistory.filter(e => e.type === 'score').length} actions and ${gkaVideoClips.size} video clips.`);
+  gkaStatus(`Imported ${actionHistory.filter(e => e.type === 'score').length} actions, ${gkaVideoClips.size} original clips and ${gkaTelestratorClips.size} Telestrator clips.`);
 }
 
 // Extend the existing import handler so CSV/JSON keep working and .gka is added.

@@ -3311,6 +3311,69 @@ document.addEventListener('keydown', event => {
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
+  function ensureExportExtension(filename, extension) {
+    const ext = String(extension || '').startsWith('.') ? String(extension) : `.${extension}`;
+    let name = String(filename || 'export').trim();
+    name = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/[.\s]+$/g, '');
+    if (!name) name = 'export';
+    if (!name.toLowerCase().endsWith(ext.toLowerCase())) name += ext;
+    return name;
+  }
+
+  async function prepareExportTarget(filename, mimeType, extension, description) {
+    const ext = String(extension || '').startsWith('.') ? String(extension) : `.${extension}`;
+    let suggestedName = ensureExportExtension(filename, ext);
+    const mime = String(mimeType || 'application/octet-stream').split(';')[0];
+
+    if (typeof window.showSaveFilePicker === 'function' && window.isSecureContext) {
+      while (true) {
+        try {
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{ description: description || `${ext.toUpperCase()} file`, accept: { [mime]: [ext] } }],
+            excludeAcceptAllOption: true
+          });
+          if (!handle.name.toLowerCase().endsWith(ext.toLowerCase())) {
+            suggestedName = ensureExportExtension(handle.name, ext);
+            alert(`The filename must end with ${ext}. Please save it again. The extension has been restored automatically.`);
+            continue;
+          }
+          return { handle, filename: handle.name, mimeType };
+        } catch (error) {
+          if (error && error.name === 'AbortError') return null;
+          console.warn('Save As is not available. Using the browser download instead.', error);
+          break;
+        }
+      }
+    }
+
+    const currentBase = suggestedName.slice(0, -ext.length);
+    const enteredName = prompt(`File name (${ext} will be added automatically):`, currentBase);
+    if (enteredName === null) return null;
+    return { handle: null, filename: ensureExportExtension(enteredName, ext), mimeType };
+  }
+
+  async function savePreparedExport(target, content) {
+    if (!target) return false;
+    const blob = content instanceof Blob
+      ? (content.type ? content : new Blob([content], { type: target.mimeType }))
+      : new Blob([content], { type: target.mimeType });
+    try {
+      if (target.handle) {
+        const writable = await target.handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        downloadFile(target.filename, blob, target.mimeType);
+      }
+      return true;
+    } catch (error) {
+      console.error(error);
+      alert(`The file could not be saved. ${error?.message || error}`);
+      return false;
+    }
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -3562,7 +3625,7 @@ document.addEventListener('keydown', event => {
     return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   }
 
-  function exportCSV() {
+  async function exportCSV() {
     if (!requirePlayerType()) return;
     const report = getReportData();
     const lines = [];
@@ -3622,7 +3685,14 @@ document.addEventListener('keydown', event => {
       ].join(','));
     });
 
-    downloadFile(`${buildSafeFilename()}.csv`, lines.join('\n'), 'text/csv;charset=utf-8;');
+    const target = await prepareExportTarget(
+      `${buildSafeFilename()}.csv`,
+      'text/csv;charset=utf-8;',
+      '.csv',
+      'CSV analysis file'
+    );
+    if (!target) return;
+    await savePreparedExport(target, lines.join('\n'));
   }
 
   function setupVideoControls() {
@@ -5114,7 +5184,17 @@ async function exportSelectedFromActionLog() {
       `${changed.length} changed and ${missing.length} missing clips must be generated.\n\nContinue with those clips only?`
     );
     if (!ok) return;
+  }
 
+  const exportTarget = await prepareExportTarget(
+    `${buildSafeFilename()}_selected.gka`,
+    'application/octet-stream',
+    '.gka',
+    'GKA analysis package'
+  );
+  if (!exportTarget) return;
+
+  if (clipsToGenerate.length) {
     await generateActionVideos({ entries: clipsToGenerate, forceExisting: true });
   }
 
@@ -5160,11 +5240,8 @@ async function exportSelectedFromActionLog() {
     }
   );
 
-  downloadFile(
-    `${buildSafeFilename()}_selected.gka`,
-    packageBlob,
-    'application/octet-stream'
-  );
+  const saved = await savePreparedExport(exportTarget, packageBlob);
+  if (!saved) return;
   gkaTelestratorDirty = false;
   hakMarkAnalysisSaved();
 
@@ -5438,6 +5515,17 @@ async function exportSelectedVideoPackage(){
     }
     const ok = confirm(`${changed.length} changed and ${missing.length} missing clips must be generated. Continue with those clips only?`);
     if (!ok) return;
+  }
+
+  const exportTarget = await prepareExportTarget(
+    `${buildSafeFilename()}_selected.gka`,
+    'application/octet-stream',
+    '.gka',
+    'GKA analysis package'
+  );
+  if (!exportTarget) return;
+
+  if (clipsToGenerate.length) {
     closeVideoExportPicker();
     await generateActionVideos({ entries: clipsToGenerate, forceExisting: true });
   }
@@ -5471,7 +5559,8 @@ async function exportSelectedVideoPackage(){
     {type:'blob', compression:'STORE'},
     m => gkaStatus(`Packing selected clips... ${Math.round(m.percent)}%`)
   );
-  downloadFile(`${buildSafeFilename()}_selected.gka`, blob, 'application/octet-stream');
+  const saved = await savePreparedExport(exportTarget, blob);
+  if (!saved) return;
   gkaTelestratorDirty = false;
   hakMarkAnalysisSaved();
   closeVideoExportPicker();

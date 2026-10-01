@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <meta name="theme-color" content="#07131f">
-  <title>HAK Tactical Board — v15</title>
+  <title>HAK Tactical Board — v16</title>
   <style>
     :root{--bg:#06111c;--panel:#0b1b2a;--panel2:#102639;--line:#23435a;--ink:#f5fbff;--muted:#8ea8ba;--cyan:#13d7e6;--cyan2:#2af1c6;--red:#ff5470;--blue:#1e8fff;--green:#157b52;--green2:#116743;--gold:#ffd166;--shadow:0 18px 45px #0007}
     *{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:14px/1.35 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}button,input,select{font:inherit}.app{height:100%;display:grid;grid-template-rows:64px 1fr}
@@ -20,15 +20,17 @@
 <body>
 <div class="app" id="app">
   <header>
-    <a class="brand" href="https://hak-analysis.com/index.html" title="Back to hak-analysis.com"><div class="mark">HAK</div><div><b>TACTICAL BOARD</b><small>version 15</small></div></a>
+    <a class="brand" href="https://hak-analysis.com/index.html" title="Back to hak-analysis.com"><div class="mark">HAK</div><div><b>TACTICAL BOARD</b><small>version 16</small></div></a>
     <span class="status" id="status">Scene 1 · Select and move</span>
     <div class="top-actions">
       <button class="btn" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
       <button class="btn" id="redoBtn" title="Redo (Ctrl+Shift+Z)">↷</button>
       <button class="btn" id="printBtn">▣ <span class="wide">PRINT</span></button>
       <button class="btn" id="pngBtn">↓ <span class="wide">PNG</span></button>
+      <button class="btn" id="importBtn" title="Import HTB project">↑ <span class="wide">IMPORT</span></button>
       <button class="btn primary" id="saveBtn">↓ <span class="wide">HTB</span></button>
       <button class="icon-btn mobile-panel" id="panelBtn">☰</button>
+      <input id="importHTBInput" type="file" accept=".htb,application/json" hidden>
     </div>
   </header>
   <main>
@@ -240,7 +242,35 @@
   function cleanImage(forceWhite=false){const oldSelected=selected,oldStyle=state.pitchStyle;selected=null;if(forceWhite)state.pitchStyle='white';render();const data=canvas.toDataURL('image/png');selected=oldSelected;state.pitchStyle=oldStyle;render();return data}
   function exportPNG(){saveCurrent();const a=document.createElement('a');a.download=`hak-tactical-scene-${sceneIndex+1}.png`;a.href=cleanImage();a.click();toast('PNG image downloaded')}
   function printBoard(){saveCurrent();const data=cleanImage(true),w=window.open('','_blank','width=850,height=1000');if(!w){toast('Allow the pop-up window to print');return}w.document.write(`<!doctype html><html><head><title>HAK Tactical Board · Scene ${sceneIndex+1}</title><style>@page{size:A4 portrait;margin:10mm}html,body{margin:0;background:#fff}body{display:grid;place-items:center;min-height:100vh}img{display:block;max-width:100%;max-height:277mm;object-fit:contain}@media print{body{min-height:auto}}</style></head><body><img src="${data}" onload="setTimeout(()=>window.print(),250)"></body></html>`);w.document.close();toast('Print-friendly view opened')}
-  function exportHTB(){saveCurrent();const blob=new Blob([JSON.stringify({format:'HAK-TACTICAL-BOARD',version:1,created:new Date().toISOString(),state},null,2)],{type:'application/json'});const a=document.createElement('a');a.download='hak-tactical-project.htb';a.href=URL.createObjectURL(blob);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('HTB project downloaded')}
+  function exportHTB(){saveCurrent();const blob=new Blob([JSON.stringify({format:'HAK-TACTICAL-BOARD',version:2,created:new Date().toISOString(),sceneIndex,state},null,2)],{type:'application/json'});const a=document.createElement('a');a.download='hak-tactical-project.htb';a.href=URL.createObjectURL(blob);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('HTB project downloaded')}
+  async function importHTB(file){
+    if(!file)return;
+    try{
+      const data=JSON.parse(await file.text());
+      if(!data||data.format!=='HAK-TACTICAL-BOARD'||!data.state||typeof data.state!=='object')throw new Error('This is not a valid HAK Tactical Board project.');
+      const imported=deep(data.state),plainObject=value=>value&&typeof value==='object'&&!Array.isArray(value);
+      imported.workMode=['animation','static'].includes(imported.workMode)?imported.workMode:'animation';
+      imported.orientation=['vertical','horizontal'].includes(imported.orientation)?imported.orientation:'vertical';
+      imported.viewMode=['full','half-top','half-bottom','perspective','blank'].includes(imported.viewMode)?imported.viewMode:'full';
+      imported.pitchStyle=['green','white'].includes(imported.pitchStyle)?imported.pitchStyle:'green';
+      imported.teamColors=plainObject(imported.teamColors)?imported.teamColors:{A:colors.A,B:colors.B};
+      imported.items=Array.isArray(imported.items)?imported.items:[];
+      imported.drawings=Array.isArray(imported.drawings)?imported.drawings:[];
+      imported.motions=plainObject(imported.motions)?imported.motions:{};
+      imported.motionVisibility=plainObject(imported.motionVisibility)?imported.motionVisibility:{};
+      imported.sceneDuration=Math.max(.5,Math.min(5,Number(imported.sceneDuration)||2));
+      imported.showPaths=imported.showPaths!==false;
+      imported.scenes=Array.isArray(imported.scenes)?imported.scenes.filter(s=>s&&typeof s==='object').map((s,i)=>({
+        name:String(s.name||`Scene ${i+1}`),duration:Math.max(.5,Math.min(5,Number(s.duration)||2)),showPaths:s.showPaths!==false,
+        items:Array.isArray(s.items)?s.items:[],drawings:Array.isArray(s.drawings)?s.drawings:[],motions:plainObject(s.motions)?s.motions:{}
+      })):[];
+      if(!imported.scenes.length)imported.scenes=[{name:'Start',duration:imported.sceneDuration,showPaths:imported.showPaths,items:deep(imported.items),drawings:deep(imported.drawings),motions:deep(imported.motions)}];
+      const importedIndex=Math.max(0,Math.min(Number.isInteger(data.sceneIndex)?data.sceneIndex:0,imported.scenes.length-1)),scene=imported.scenes[importedIndex];
+      imported.items=deep(scene.items);imported.drawings=deep(scene.drawings);imported.motions=deep(scene.motions);imported.sceneDuration=scene.duration;imported.showPaths=scene.showPaths!==false;
+      if(playing)stop();state=imported;sceneIndex=importedIndex;selected=null;draft=null;drag=null;undo=[];redo=[];tool='select';
+      configureCanvas();syncUI();render();toast(`HTB project imported · ${state.scenes.length} scene${state.scenes.length===1?'':'s'}`);
+    }catch(error){console.error(error);alert(`The HTB project could not be imported.\n\n${error?.message||error}`)}
+  }
   function clearBoard(){if(!confirm('Clear the current scene?'))return;history();state.items=[];state.drawings=[];state.motions={};selected=null;saveCurrent();syncUI();render()}
   function lineXs(count){if(count===1)return[.5];const left=count>=5?.12:.16,right=1-left;return Array.from({length:count},(_,i)=>left+(right-left)*i/(count-1))}
   function formationPlayers(shape){const lines=shape.split('-').map(Number),ys=lines.length===3?[.80,.60,.37]:Array.from({length:lines.length},(_,i)=>.82-i*(.46/Math.max(1,lines.length-1))),makeTeam=team=>{const own=team==='A',items=[player(team,1,.5,own?.93:.07,true)];let number=2;lines.forEach((count,i)=>lineXs(count).forEach(x=>items.push(player(team,number++,x,own?ys[i]:1-ys[i]))));return items};return[...makeTeam('A'),...makeTeam('B'),ball(.5,.5)]}
@@ -251,7 +281,7 @@
   function setTeamColor(team,color){history();state.teamColors=state.teamColors||{};state.teamColors[team]=color;colors[team]=color;state.items.forEach(x=>{if(x.type==='player'&&x.team===team)x.color=color});state.scenes.forEach(s=>(s.items||[]).forEach(x=>{if(x.type==='player'&&x.team===team)x.color=color}));saveCurrent();syncUI();render();toast(`Team ${team} color changed`)}
   $('addA').onclick=()=>addItem('player','A');$('addB').onclick=()=>addItem('player','B');$('addGKA').onclick=()=>addItem('player','A',true);$('addGKB').onclick=()=>addItem('player','B',true);$('teamAColor').onchange=e=>setTeamColor('A',e.target.value);$('teamBColor').onchange=e=>setTeamColor('B',e.target.value);document.querySelectorAll('[data-add-equipment]').forEach(b=>b.onclick=()=>{addEquipment(b.dataset.addEquipment);b.closest('details').open=false});
   canvas.addEventListener('pointerdown',pointerDown);canvas.addEventListener('pointermove',pointerMove);canvas.addEventListener('pointerup',pointerUp);canvas.addEventListener('pointercancel',pointerUp);
-  $('addScene').onclick=addScene;$('playBtn').onclick=play;$('downloadClipBtn').onclick=downloadClip;$('undoBtn').onclick=doUndo;$('redoBtn').onclick=doRedo;$('printBtn').onclick=printBoard;$('pngBtn').onclick=exportPNG;$('saveBtn').onclick=exportHTB;$('clearBtn').onclick=clearBoard;$('deleteBtn').onclick=()=>selected&&removeId(selected);$('copyEquipmentBtn').onclick=copySelectedEquipment;
+  $('addScene').onclick=addScene;$('playBtn').onclick=play;$('downloadClipBtn').onclick=downloadClip;$('undoBtn').onclick=doUndo;$('redoBtn').onclick=doRedo;$('printBtn').onclick=printBoard;$('pngBtn').onclick=exportPNG;$('importBtn').onclick=()=>$('importHTBInput').click();$('importHTBInput').onchange=async e=>{const file=e.target.files?.[0];await importHTB(file);e.target.value=''};$('saveBtn').onclick=exportHTB;$('clearBtn').onclick=clearBoard;$('deleteBtn').onclick=()=>selected&&removeId(selected);$('copyEquipmentBtn').onclick=copySelectedEquipment;
   $('formationSelect').onchange=e=>applyFormation(e.target.value);$('panelBtn').onclick=()=>$('app').classList.toggle('panel-open');
   function setWorkMode(mode){state.workMode=mode;syncUI();render();toast(mode==='static'?'STATIC mode — create a still tactical board':'ANIMATION mode — scenes and video')}
   $('animationModeBtn').onclick=()=>setWorkMode('animation');$('staticModeBtn').onclick=()=>setWorkMode('static');

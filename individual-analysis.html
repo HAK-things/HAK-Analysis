@@ -1812,9 +1812,130 @@ body.analysis-mode .hak-suite-bar{display:none!important}
   let hakAnalysisDirty = false;
   let hakNavigationGuardArmed = false;
   let hakNavigationAllowed = false;
+  const HAK_AUTOSAVE_KEY = 'hak-individual-analysis-autosave-v1';
+  let hakPendingRestoredVideoTime = null;
+  let hakLastVideoAutosaveAt = 0;
+
+  function hakDraftHasWork() {
+    return actionHistory.some(entry => entry.type === 'score') ||
+      Object.keys(metrics).length > 0 ||
+      !!document.getElementById('playerName')?.value?.trim() ||
+      !!document.getElementById('matchDate')?.value ||
+      !!document.getElementById('matchOpponent')?.value?.trim();
+  }
+
+  function hakDraftAction(entry) {
+    const copy = { ...entry };
+    // Generated clips are kept only in memory/GKA packages. After a restart
+    // the action remains, but it must not point to a video blob that is gone.
+    copy._gkaVideoName = null;
+    copy._gkaVideoMime = null;
+    copy._gkaClipStart = null;
+    copy._gkaClipDuration = null;
+    copy._clipNeedsRegeneration = false;
+    delete copy._gkaVideoError;
+    return copy;
+  }
+
+  function hakSaveDraftNow() {
+    try {
+      if (!hakDraftHasWork()) return;
+      const video = document.getElementById('videoPlayer');
+      const draft = {
+        format: 'HAK_INDIVIDUAL_AUTOSAVE',
+        version: 1,
+        savedAt: new Date().toISOString(),
+        playerType,
+        playerName: document.getElementById('playerName')?.value || '',
+        matchDate: document.getElementById('matchDate')?.value || '',
+        matchOpponent: document.getElementById('matchOpponent')?.value || '',
+        goalsConcedet,
+        cleanSheetActive,
+        goalOutcomeSelected,
+        activeMetric,
+        metrics: JSON.parse(JSON.stringify(metrics)),
+        actionHistory: actionHistory.map(hakDraftAction),
+        videoTime: Number.isFinite(Number(video?.currentTime)) ? Number(video.currentTime) : 0
+      };
+      localStorage.setItem(HAK_AUTOSAVE_KEY, JSON.stringify(draft));
+    } catch (error) {
+      console.warn('[HAK Analysis] Automatic save was not available.', error);
+    }
+  }
+
+  function hakClearDraft() {
+    try { localStorage.removeItem(HAK_AUTOSAVE_KEY); } catch (_) {}
+  }
+
+  function hakReadDraft() {
+    try {
+      const raw = localStorage.getItem(HAK_AUTOSAVE_KEY);
+      if (!raw) return null;
+      const draft = JSON.parse(raw);
+      if (draft?.format !== 'HAK_INDIVIDUAL_AUTOSAVE' || draft.version !== 1) return null;
+      return draft;
+    } catch (error) {
+      console.warn('[HAK Analysis] The automatic save could not be read.', error);
+      return null;
+    }
+  }
+
+  function hakRestoreDraft(draft) {
+    resetAppState();
+    document.getElementById('playerName').value = draft.playerName || '';
+    document.getElementById('matchDate').value = draft.matchDate || '';
+    document.getElementById('matchOpponent').value = draft.matchOpponent || '';
+    playerType = draft.playerType === 'outfield' ? 'outfield' : (draft.playerType === 'goalkeeper' ? 'goalkeeper' : '');
+    document.getElementById('playerType').value = playerType;
+    goalsConcedet = Math.max(0, Math.round(Number(draft.goalsConcedet || 0)));
+    cleanSheetActive = !!draft.cleanSheetActive;
+    goalOutcomeSelected = !!draft.goalOutcomeSelected;
+
+    Object.entries(draft.metrics || {}).forEach(([name, counts]) => {
+      metrics[name] = { ...createMetricState() };
+      SCORE_ORDER.forEach(score => {
+        const value = Number(counts?.[score] || 0);
+        metrics[name][score] = Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+      });
+    });
+
+    (Array.isArray(draft.actionHistory) ? draft.actionHistory : []).forEach(entry => {
+      if (!entry || entry.type !== 'score') return;
+      actionHistory.push(hakDraftAction(entry));
+    });
+    rebuildMetricsFromHistory();
+    activeMetric = draft.activeMetric && (isMomentsMetric(draft.activeMetric) || metrics[draft.activeMetric])
+      ? draft.activeMetric
+      : (sortedMetricNames()[0] || MOMENTS_METRIC);
+    hakPendingRestoredVideoTime = Math.max(0, Number(draft.videoTime || 0));
+    render();
+    hakMarkAnalysisDirty();
+  }
+
+  function hakOfferDraftRestore() {
+    const draft = hakReadDraft();
+    if (!draft || !Array.isArray(draft.actionHistory) || !draft.actionHistory.length) return;
+    const savedAt = draft.savedAt ? new Date(draft.savedAt).toLocaleString() : '';
+    const restore = confirm(
+      'Unsaved analysis found. Do you want to restore it?\n' +
+      'Открит е незавършен анализ. Искате ли да го възстановите?\n\n' +
+      (savedAt ? `Autosaved / Запазен автоматично: ${savedAt}\n\n` : '') +
+      'OK = Restore / Възстанови\nCancel = Discard / Изтрий'
+    );
+    if (!restore) {
+      hakClearDraft();
+      return;
+    }
+    hakRestoreDraft(draft);
+    alert(
+      'Analysis restored. Please select the original match video again.\n' +
+      'Анализът е възстановен. Моля, изберете отново оригиналното видео на мача.'
+    );
+  }
 
   function hakMarkAnalysisDirty() {
     hakAnalysisDirty = true;
+    hakSaveDraftNow();
     if (hakNavigationGuardArmed || !window.history?.pushState) return;
     history.pushState({ ...(history.state || {}), hakAnalysisGuard: true }, '', location.href);
     hakNavigationGuardArmed = true;
@@ -1822,6 +1943,7 @@ body.analysis-mode .hak-suite-bar{display:none!important}
 
   function hakMarkAnalysisSaved() {
     hakAnalysisDirty = false;
+    hakClearDraft();
   }
 
   function hakLeaveAfterGuard() {
@@ -3709,6 +3831,22 @@ document.addEventListener('keydown', event => {
       videoPlayer.dataset.originalVideoUrl = url;
       videoPlayer.src = url;
       videoPlayer.load();
+      if (hakPendingRestoredVideoTime !== null) {
+        const restoredTime = hakPendingRestoredVideoTime;
+        videoPlayer.addEventListener('loadedmetadata', () => {
+          const maximum = Number.isFinite(videoPlayer.duration) ? videoPlayer.duration : restoredTime;
+          videoPlayer.currentTime = Math.max(0, Math.min(restoredTime, maximum));
+          hakPendingRestoredVideoTime = null;
+        }, { once: true });
+      }
+    });
+
+    videoPlayer.addEventListener('timeupdate', () => {
+      if (!hakAnalysisDirty || !actionHistory.length) return;
+      const now = Date.now();
+      if (now - hakLastVideoAutosaveAt < 5000) return;
+      hakLastVideoAutosaveAt = now;
+      hakSaveDraftNow();
     });
 
     // Native video controls keep the keyboard focus after Play/Pause.
@@ -3978,6 +4116,14 @@ window.addEventListener('beforeunload', event => {
   if (hakNavigationAllowed || (!hakAnalysisDirty && !gkaTelestratorDirty)) return;
   event.preventDefault();
   event.returnValue = '';
+});
+
+window.addEventListener('pagehide', hakSaveDraftNow);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && hakAnalysisDirty) hakSaveDraftNow();
+});
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(hakOfferDraftRestore, 0);
 });
 
 function gkaEntrySeconds(entry) {

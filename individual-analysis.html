@@ -1091,9 +1091,6 @@ https://github.com/nodeca/pako/blob/main/LICENSE
  .clip-management-panel{position:relative;z-index:10000;overflow:visible!important}
  .clip-management-buttons{overflow:visible!important}
  .action-log-panel{position:relative;z-index:1}
- /* Keep an open Action Log filter above the CLIPS toolbar. */
- .action-log-panel.multi-filter-open{position:relative;z-index:20000;overflow:visible!important}
- .action-log-panel.multi-filter-open .multi-filter-menu{z-index:20001}
  @media(max-width:700px){.clip-menu-items{position:fixed;top:auto;left:12px!important;right:12px!important;width:auto;min-width:0;bottom:12px}}
 
 .clip-management-buttons .selected-clips-count {
@@ -4536,6 +4533,52 @@ function gkaDrawExportWatermark(ctx, canvas) {
   ctx.restore();
 }
 
+async function gkaSeekForClipGeneration(video, time, timeoutMs = 20000) {
+  const target = Math.max(0, Number(time) || 0);
+  if (Math.abs(Number(video.currentTime || 0) - target) < 0.03 && video.readyState >= 2) return;
+  const seeked = gkaWaitForEvent(video, 'seeked', timeoutMs);
+  video.currentTime = target;
+  await seeked;
+}
+
+async function gkaPlayForClipGeneration(video, start, timeoutMs = 20000) {
+  const playOnce = async () => {
+    let timer = null;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => video.play()),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('VIDEO_PLAY_TIMEOUT')), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
+  try {
+    await playOnce();
+    return;
+  } catch (firstError) {
+    gkaStatus('Video start failed — retrying… / Видеото не стартира — втори опит…');
+    try {
+      video.pause();
+      video.load();
+      if (video.readyState < 1) await gkaWaitForEvent(video, 'loadedmetadata', timeoutMs);
+      await gkaSeekForClipGeneration(video, start, timeoutMs);
+      await playOnce();
+      return;
+    } catch (secondError) {
+      const error = new Error(
+        'Video could not start. Please reload the original video and try again.\n' +
+        'Видеото не можа да стартира. Заредете отново оригиналното видео и опитайте пак.'
+      );
+      error.code = 'GKA_VIDEO_START_FAILED';
+      throw error;
+    }
+  }
+}
+
 async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalClips, actionEntry = null) {
   if (!video) throw new Error('Video player not found.');
   if (typeof MediaRecorder === 'undefined') throw new Error('This browser does not support MediaRecorder.');
@@ -4581,8 +4624,7 @@ async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalCl
   });
 
   video.pause();
-  video.currentTime = Math.max(0, start);
-  await gkaWaitForEvent(video, 'seeked', 20000);
+  await gkaSeekForClipGeneration(video, start, 20000);
 
   let raf = 0;
   let stopped = false;
@@ -4609,12 +4651,13 @@ async function gkaRecordClipFromVideo(video, start, duration, clipIndex, totalCl
 
   recorder.start(1000);
   try {
-    await video.play();
+    await gkaPlayForClipGeneration(video, start, 20000);
   } catch (e) {
     stopped = true;
     cancelAnimationFrame(raf);
-    stream.getTracks().forEach(t => { if (t.kind === 'video') t.stop(); });
-    throw new Error('The browser could not play the selected source video for clip generation.');
+    try { if (recorder.state !== 'inactive') recorder.stop(); } catch (_) {}
+    canvasStream.getTracks().forEach(t => t.stop());
+    throw e;
   }
 
   await new Promise((resolve, reject) => {
@@ -5184,7 +5227,11 @@ async function exportSelectedFromActionLog() {
       return;
     }
     const ok = confirm(
-      `${changed.length} changed and ${missing.length} missing clips must be generated.\n\nContinue with those clips only?`
+      'For a more reliable export, we recommend generating the selected clips first.\n' +
+      'За по-сигурен експорт препоръчваме първо да генерирате избраните клипове.\n\n' +
+      `${changed.length} changed and ${missing.length} missing clips must be generated automatically.\n` +
+      `${changed.length} променени и ${missing.length} липсващи клипа трябва да бъдат генерирани автоматично.\n\n` +
+      'Continue? / Продължавате ли?'
     );
     if (!ok) return;
   }
@@ -5198,7 +5245,8 @@ async function exportSelectedFromActionLog() {
   if (!exportTarget) return;
 
   if (clipsToGenerate.length) {
-    await generateActionVideos({ entries: clipsToGenerate, forceExisting: true });
+    const generationCompleted = await generateActionVideos({ entries: clipsToGenerate, forceExisting: true });
+    if (generationCompleted === false) return;
   }
 
   const ready = selected.filter(
@@ -5417,6 +5465,7 @@ async function generateActionVideos(options = {}) {
         successfulActions += groupEntries.length;
       } catch (clipError) {
         console.error('[GK Analysis] Clip failed:', clipError);
+        if (clipError?.code === 'GKA_VIDEO_START_FAILED') throw clipError;
         groupEntries.forEach(entry => {
           entry._gkaVideoError = clipError?.message || String(clipError);
         });
@@ -5444,12 +5493,18 @@ async function generateActionVideos(options = {}) {
       (failed ? `\n${failed} clips failed and have been marked in the Action Log.` : '') +
       `\n\nThe remaining actions were not processed.`
     );
+    return true;
   } catch (error) {
     console.error('[GK Analysis] Browser-native clip generation failed:', error);
     gkaStatus('Clip generation was interrupted.');
     hideClipProgress();
     renderLogTable();
-    alert('The selected clips could not be generated.\n\n' + (error?.message || String(error)));
+    alert(
+      'The selected clips could not be generated.\n' +
+      'Избраните клипове не можаха да бъдат генерирани.\n\n' +
+      (error?.message || String(error))
+    );
+    return false;
   }
 }
 
